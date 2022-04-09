@@ -7,5 +7,7 @@ Take home tech test for Face IT
     * go 1.18
     * Make
     * staticcheck
+    * docker
 * Document CI Process
+* Document testing locally
 
