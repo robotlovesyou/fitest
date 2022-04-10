@@ -4,7 +4,7 @@
 // - protoc             v3.19.4
 // source: users.proto
 
-package rpc
+package generated
 
 import (
 	context "context"

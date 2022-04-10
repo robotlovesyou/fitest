@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "github.com/robotlovesyou/fitest/pkg/rpc";
+option go_package = "github.com/robotlovesyou/fitest/pkg/rpc/generated";
 
 message NewUser {
     string first_name = 1;
