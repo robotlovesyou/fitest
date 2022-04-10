@@ -10,3 +10,4 @@ Take home tech test for Face IT
     * docker
 * Document CI Process
 * Document testing locally
+* Document the proto file for the rpc
