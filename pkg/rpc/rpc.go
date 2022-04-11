@@ -12,6 +12,11 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+const (
+	// Error message sent for internal errors
+	msgInternalServerError = "Internal Server Error"
+)
+
 // UsersService defines the interface for the service RPCServer delegates its implementation logic to
 type UsersService interface {
 	CreateUser(context.Context, users.NewUser) (users.User, error)
@@ -76,7 +81,7 @@ func (svr *RPCServer) CreateUser(ctx context.Context, newUser *userspb.NewUser) 
 		case errors.Is(err, users.ErrInvalid):
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		default:
-			return nil, status.Error(codes.Internal, "Internal Server Error")
+			return nil, status.Error(codes.Internal, msgInternalServerError)
 		}
 	}
 
@@ -104,7 +109,7 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *userspb.Update
 		case errors.Is(err, users.ErrInvalidVersion):
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		default:
-			return nil, status.Error(codes.Internal, "Internal Server Error")
+			return nil, status.Error(codes.Internal, msgInternalServerError)
 		}
 	}
 	return pbUserFromUser(&user), nil
@@ -120,7 +125,7 @@ func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *userspb.Ref) (*em
 		case errors.Is(err, users.ErrInvalid):
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		default:
-			return nil, status.Error(codes.Internal, "Internal Server Error")
+			return nil, status.Error(codes.Internal, msgInternalServerError)
 		}
 	}
 	return &emptypb.Empty{}, nil
@@ -134,7 +139,7 @@ func (svr *RPCServer) FindUsers(ctx context.Context, query *userspb.Query) (*use
 		Page:         query.Page,
 	})
 	if err != nil {
-		panic("error handling not implemented")
+		return nil, status.Error(codes.Internal, msgInternalServerError)
 	}
 	return pbPageFromPage(&page), nil
 }

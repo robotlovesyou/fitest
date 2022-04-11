@@ -417,3 +417,18 @@ func TestFindUsersRPCCallsServiceAndRespondsWithCorrectValues(t *testing.T) {
 		}
 	})
 }
+
+func TestCorrectErrorCodeSentFindingUsers(t *testing.T) {
+	// For the sake of brevity, I am only going to use grpc error codes when the service fails.
+	// In a real world implementation I would, where appropriate, include detail via status details
+	stubService := newStubService()
+	request := fakeUsersQuery()
+	withClient(stubService, func(client userspb.UsersClient) {
+		stubService.findUsers = func(ctx context.Context, _ users.Query) (page users.Page, err error) {
+			return page, errors.New("some unexpected error")
+		}
+
+		_, err := client.FindUsers(context.Background(), &request)
+		require.Equal(t, codes.Internal.String(), status.Code(err).String())
+	})
+}
