@@ -14,6 +14,11 @@ var (
 	// ErrInvalid is returned when the validation of a new or updated user fails
 	// In a real world implementation further detail would be required to allow the client to rectify the error
 	ErrInvalid = errors.New("user is invalid")
+	// ErrInvalidVersion is returned when the version returned with the update is incorrect, which would indicate that the
+	// data is stale
+	ErrInvalidVersion = errors.New("version is invalid")
+	// ErrNotFound is returned when the user matching a request does not exist
+	ErrNotFound = errors.New("user not found")
 )
 
 type NewUser struct {

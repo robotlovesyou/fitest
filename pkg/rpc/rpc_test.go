@@ -163,7 +163,7 @@ func TestCreateUserRPCCallsUsersServiceWithCorrectValues(t *testing.T) {
 	})
 }
 
-func TestCorrectErrorCodesSent(t *testing.T) {
+func TestCorrectErrorCodesSentCreatingUser(t *testing.T) {
 	// For the sake of brevity, I am only going to use grpc error codes when the service fails.
 	// In a real world implementation I would, where appropriate, include detail via status details
 	cases := []struct {
@@ -192,7 +192,7 @@ func TestCorrectErrorCodesSent(t *testing.T) {
 			stubService := newStubService()
 			request := fakeNewUser()
 			withClient(stubService, func(client pb.UsersClient) {
-				stubService.createUser = func(ctx context.Context, newUser users.NewUser) (usr users.User, err error) {
+				stubService.createUser = func(ctx context.Context, _ users.NewUser) (usr users.User, err error) {
 					return usr, testCase.result
 				}
 
@@ -233,4 +233,49 @@ func TestUpdateUserRPCCallsServiceWithCorrectValues(t *testing.T) {
 		require.Equal(t, response.CreatedAt.Format(time.RFC3339), user.CreatedAt)
 		require.Equal(t, response.UpdatedAt.Format(time.RFC3339), user.UpdatedAt)
 	})
+}
+
+func TestCorrectErrorCodesSentUpdatingUser(t *testing.T) {
+	// For the sake of brevity, I am only going to use grpc error codes when the service fails.
+	// In a real world implementation I would, where appropriate, include detail via status details
+	cases := []struct {
+		name         string
+		result       error
+		expectedCode codes.Code
+	}{
+		{
+			name:         "NotFound",
+			result:       users.ErrNotFound,
+			expectedCode: codes.NotFound,
+		},
+		{
+			name:         "Invalid",
+			result:       users.ErrInvalid,
+			expectedCode: codes.InvalidArgument,
+		},
+		{
+			name:         "InvalidVersion",
+			result:       users.ErrInvalidVersion,
+			expectedCode: codes.FailedPrecondition,
+		},
+		{
+			name:         "Internal",
+			result:       errors.New("some unexpected error"),
+			expectedCode: codes.Internal,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			stubService := newStubService()
+			request := fakeUserUpdate()
+			withClient(stubService, func(client pb.UsersClient) {
+				stubService.updateUser = func(ctx context.Context, _ users.UserUpdate) (usr users.User, err error) {
+					return usr, testCase.result
+				}
+
+				_, err := client.UpdateUser(context.Background(), &request)
+				require.Equal(t, testCase.expectedCode.String(), status.Code(err).String())
+			})
+		})
+	}
 }

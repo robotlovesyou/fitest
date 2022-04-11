@@ -79,7 +79,16 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate)
 		Version:         userUpdate.Version,
 	})
 	if err != nil {
-		panic("error handling not implemented")
+		switch {
+		case errors.Is(err, users.ErrNotFound):
+			return nil, status.Error(codes.NotFound, err.Error())
+		case errors.Is(err, users.ErrInvalid):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		case errors.Is(err, users.ErrInvalidVersion):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		default:
+			return nil, status.Error(codes.Internal, "Internal Server Error")
+		}
 	}
 	return pbUserFromUser(&user), nil
 }
