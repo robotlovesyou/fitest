@@ -9,12 +9,14 @@ import (
 	"github.com/robotlovesyou/fitest/pkg/users"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // UsersService defines the interface for the service RPCServer delegates its implementation logic to
 type UsersService interface {
 	CreateUser(context.Context, users.NewUser) (users.User, error)
 	UpdateUser(context.Context, users.UserUpdate) (users.User, error)
+	DeleteUser(context.Context, users.UserRef) error
 }
 
 // RPCServer is an impementation of generated.UsersService.
@@ -79,6 +81,8 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate)
 		Version:         userUpdate.Version,
 	})
 	if err != nil {
+		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
+		// In a real world implementation I would, where appropriate, include detail via status details.
 		switch {
 		case errors.Is(err, users.ErrNotFound):
 			return nil, status.Error(codes.NotFound, err.Error())
@@ -91,4 +95,11 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate)
 		}
 	}
 	return pbUserFromUser(&user), nil
+}
+
+func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *pb.UserRef) (*emptypb.Empty, error) {
+	if err := svr.service.DeleteUser(ctx, users.UserRef{ID: userRef.Id}); err != nil {
+		panic("error handling not implemented")
+	}
+	return &emptypb.Empty{}, nil
 }

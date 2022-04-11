@@ -24,10 +24,12 @@ import (
 
 type stubCreateUser func(context.Context, users.NewUser) (users.User, error)
 type stubUpdateUser func(context.Context, users.UserUpdate) (users.User, error)
+type stubDeleteUser func(context.Context, users.UserRef) error
 
 type stubUsersService struct {
 	createUser stubCreateUser
 	updateUser stubUpdateUser
+	deleteUser stubDeleteUser
 }
 
 func newStubService() *stubUsersService {
@@ -38,6 +40,9 @@ func newStubService() *stubUsersService {
 		updateUser: func(context.Context, users.UserUpdate) (users.User, error) {
 			panic("stub update user")
 		},
+		deleteUser: func(context.Context, users.UserRef) error {
+			panic("stub delete user")
+		},
 	}
 }
 
@@ -47,6 +52,10 @@ func (svc *stubUsersService) CreateUser(ctx context.Context, newUser users.NewUs
 
 func (svc *stubUsersService) UpdateUser(ctx context.Context, userUpdate users.UserUpdate) (users.User, error) {
 	return svc.updateUser(ctx, userUpdate)
+}
+
+func (svc *stubUsersService) DeleteUser(ctx context.Context, userRef users.UserRef) error {
+	return svc.deleteUser(ctx, userRef)
 }
 
 // end of UsersService mock
@@ -75,6 +84,12 @@ func fakeUserUpdate() pb.UserUpdate {
 		ConfirmPassword: password,
 		Country:         "DE",
 		Version:         0,
+	}
+}
+
+func fakeUserRef() pb.UserRef {
+	return pb.UserRef{
+		Id: uuid.Must(uuid.NewRandom()).String(),
 	}
 }
 
@@ -278,4 +293,20 @@ func TestCorrectErrorCodesSentUpdatingUser(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestDeleteUserRPCCallsUsersServiceWithCorrectValues(t *testing.T) {
+	stubService := newStubService()
+	request := fakeUserRef()
+	withClient(stubService, func(client pb.UsersClient) {
+		// check that the request payload has been conveyed correctly to the users service
+		stubService.deleteUser = func(ctx context.Context, ref users.UserRef) error {
+			require.Equal(t, request.Id, ref.ID)
+			return nil
+		}
+
+		// check that the created user has been conveyed correctly via the rpc layer
+		_, err := client.DeleteUser(context.Background(), &request)
+		require.NoError(t, err)
+	})
 }

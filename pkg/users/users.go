@@ -52,3 +52,7 @@ type UserUpdate struct {
 	Country         string
 	Version         int32
 }
+
+type UserRef struct {
+	ID string
+}
