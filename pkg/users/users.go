@@ -7,6 +7,13 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	// MaxPageLength is the maximum length of a page
+	MaxPageLength = 100
+	// TimeFormat is the formatting string used by the users package
+	TimeFormat = time.RFC3339
+)
+
 var (
 	// ErrAlreadyExists is returned when the users email address or nickname are not unique.
 	// In a real world implementation further detail would be required to allow the client to rectify the error
@@ -43,7 +50,7 @@ type User struct {
 	UpdatedAt    time.Time
 }
 
-type UserUpdate struct {
+type Update struct {
 	ID              string
 	FirstName       string
 	LastName        string
@@ -53,6 +60,19 @@ type UserUpdate struct {
 	Version         int32
 }
 
-type UserRef struct {
+type Ref struct {
 	ID string
+}
+
+type Query struct {
+	CreatedAfter string
+	Country      string
+	Length       int32
+	Page         int32
+}
+
+type Page struct {
+	Page  int32
+	Total int32
+	Items []User
 }
