@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/robotlovesyou/fitest/pkg/rpc/generated"
+	"github.com/robotlovesyou/fitest/pb"
 	"github.com/robotlovesyou/fitest/pkg/users"
 )
 
@@ -17,7 +17,7 @@ type UsersService interface {
 // It delegates all call handling logic to its UsersService, and is only responsible for converting
 // back and forth between the types used by generated.UsersService and UsersService
 type RPCServer struct {
-	generated.UnimplementedUsersServer
+	pb.UnimplementedUsersServer
 	service UsersService
 }
 
@@ -25,7 +25,7 @@ func New(service UsersService) *RPCServer {
 	return &RPCServer{service: service}
 }
 
-func (svr *RPCServer) CreateUser(ctx context.Context, newUser *generated.NewUser) (*generated.User, error) {
+func (svr *RPCServer) CreateUser(ctx context.Context, newUser *pb.NewUser) (*pb.User, error) {
 	user, err := svr.service.CreateUser(ctx, users.NewUser{
 		FirstName:       newUser.FirstName,
 		LastName:        newUser.LastName,
@@ -38,7 +38,7 @@ func (svr *RPCServer) CreateUser(ctx context.Context, newUser *generated.NewUser
 	if err != nil {
 		panic("error handling not implemented")
 	}
-	return &generated.User{
+	return &pb.User{
 		Id:        user.ID.String(),
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
