@@ -310,3 +310,43 @@ func TestDeleteUserRPCCallsUsersServiceWithCorrectValues(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestCorrectErrorCodesSentDeletingUser(t *testing.T) {
+	// For the sake of brevity, I am only going to use grpc error codes when the service fails.
+	// In a real world implementation I would, where appropriate, include detail via status details
+	cases := []struct {
+		name         string
+		result       error
+		expectedCode codes.Code
+	}{
+		{
+			name:         "NotFound",
+			result:       users.ErrNotFound,
+			expectedCode: codes.NotFound,
+		},
+		{
+			name:         "Invalid", // invalid could be returned if the id is malformed and cannot be parsed as a UUID
+			result:       users.ErrInvalid,
+			expectedCode: codes.InvalidArgument,
+		},
+		{
+			name:         "Internal",
+			result:       errors.New("some unexpected error"),
+			expectedCode: codes.Internal,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			stubService := newStubService()
+			request := fakeUserRef()
+			withClient(stubService, func(client pb.UsersClient) {
+				stubService.deleteUser = func(ctx context.Context, _ users.UserRef) error {
+					return testCase.result
+				}
+
+				_, err := client.DeleteUser(context.Background(), &request)
+				require.Equal(t, testCase.expectedCode.String(), status.Code(err).String())
+			})
+		})
+	}
+}

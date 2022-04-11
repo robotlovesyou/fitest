@@ -99,7 +99,16 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate)
 
 func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *pb.UserRef) (*emptypb.Empty, error) {
 	if err := svr.service.DeleteUser(ctx, users.UserRef{ID: userRef.Id}); err != nil {
-		panic("error handling not implemented")
+		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
+		// In a real world implementation I would, where appropriate, include detail via status details.
+		switch {
+		case errors.Is(err, users.ErrNotFound):
+			return nil, status.Error(codes.NotFound, err.Error())
+		case errors.Is(err, users.ErrInvalid):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		default:
+			return nil, status.Error(codes.Internal, "Internal Server Error")
+		}
 	}
 	return &emptypb.Empty{}, nil
 }
