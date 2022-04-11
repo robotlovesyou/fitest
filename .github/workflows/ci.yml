@@ -1,4 +1,4 @@
-name: Go
+name: Users Service
 
 on: [push]
 jobs:
