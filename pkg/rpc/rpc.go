@@ -2,10 +2,13 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/robotlovesyou/fitest/pb"
 	"github.com/robotlovesyou/fitest/pkg/users"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // UsersService defines the interface for the service RPCServer delegates its implementation logic to
@@ -36,8 +39,18 @@ func (svr *RPCServer) CreateUser(ctx context.Context, newUser *pb.NewUser) (*pb.
 		Country:         newUser.Country,
 	})
 	if err != nil {
-		panic("error handling not implemented")
+		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
+		// In a real world implementation I would, where appropriate, include detail via status details.
+		switch {
+		case errors.Is(err, users.ErrAlreadyExists):
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		case errors.Is(err, users.ErrInvalid):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		default:
+			return nil, status.Error(codes.Internal, "Internal Server Error")
+		}
 	}
+
 	return &pb.User{
 		Id:        user.ID.String(),
 		FirstName: user.FirstName,

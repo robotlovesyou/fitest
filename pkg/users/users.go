@@ -1,9 +1,19 @@
 package users
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+var (
+	// ErrAlreadyExists is returned when the users email address or nickname are not unique.
+	// In a real world implementation further detail would be required to allow the client to rectify the error
+	ErrAlreadyExists = errors.New("user with that email or nickname already exists")
+	// ErrInvalid is returned when the validation of a new or updated user fails
+	// In a real world implementation further detail would be required to allow the client to rectify the error
+	ErrInvalid = errors.New("user is invalid")
 )
 
 type NewUser struct {

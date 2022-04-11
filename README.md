@@ -11,3 +11,4 @@ Take home tech test for Face IT
 * Document CI Process
 * Document testing locally
 * Document the proto file for the rpc
+* Document the decision to just use grpc error codes for the sake of simplicity
