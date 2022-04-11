@@ -12,3 +12,7 @@ Take home tech test for Face IT
 * Document testing locally
 * Document the proto file for the rpc
 * Document the decision to just use grpc error codes for the sake of simplicity
+* Document the decision to hash the password. 
+* Document the decision not to share the hashed password
+* Document the decision not to verify the old password on update (we are not doing authn/z)
+* Document the decision to make email and nickname unique and not updatable

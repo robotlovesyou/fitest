@@ -23,7 +23,18 @@ message User {
     int32 version = 9;
 }
 
+message UserUpdate {
+    string id = 1;
+    string first_name = 2;
+    string last_name = 3;
+    string password = 4;
+    string confirmPassword = 5;
+    string country  = 6;
+    int32 version = 7;
+}
+
 service Users {
     rpc CreateUser(NewUser) returns (User) {}
+    rpc UpdateUser(UserUpdate) returns (User) {}
 }
 

@@ -17,13 +17,13 @@ var (
 )
 
 type NewUser struct {
-	FirstName       string `faker:"first_name"`
-	LastName        string `faker:"last_name"`
-	Nickname        string `faker:"username"`
-	Password        string `faker:"password"`
+	FirstName       string
+	LastName        string
+	Nickname        string
+	Password        string
 	ConfirmPassword string
-	Email           string `faker:"email"`
-	Country         string `faker:"country"`
+	Email           string
+	Country         string
 }
 
 type User struct {
@@ -36,4 +36,14 @@ type User struct {
 	Country      string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type UserUpdate struct {
+	ID              string
+	FirstName       string
+	LastName        string
+	Password        string
+	ConfirmPassword string
+	Country         string
+	Version         int32
 }

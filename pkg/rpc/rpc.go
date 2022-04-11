@@ -14,6 +14,7 @@ import (
 // UsersService defines the interface for the service RPCServer delegates its implementation logic to
 type UsersService interface {
 	CreateUser(context.Context, users.NewUser) (users.User, error)
+	UpdateUser(context.Context, users.UserUpdate) (users.User, error)
 }
 
 // RPCServer is an impementation of generated.UsersService.
@@ -26,6 +27,19 @@ type RPCServer struct {
 
 func New(service UsersService) *RPCServer {
 	return &RPCServer{service: service}
+}
+
+func pbUserFromUser(user *users.User) *pb.User {
+	return &pb.User{
+		Id:        user.ID.String(),
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Nickname:  user.Nickname,
+		Email:     user.Email,
+		Country:   user.Country,
+		CreatedAt: user.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: user.UpdatedAt.Format(time.RFC3339),
+	}
 }
 
 func (svr *RPCServer) CreateUser(ctx context.Context, newUser *pb.NewUser) (*pb.User, error) {
@@ -51,14 +65,21 @@ func (svr *RPCServer) CreateUser(ctx context.Context, newUser *pb.NewUser) (*pb.
 		}
 	}
 
-	return &pb.User{
-		Id:        user.ID.String(),
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
-		Nickname:  user.Nickname,
-		Email:     user.Email,
-		Country:   user.Country,
-		CreatedAt: user.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: user.UpdatedAt.Format(time.RFC3339),
-	}, nil
+	return pbUserFromUser(&user), nil
+}
+
+func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *pb.UserUpdate) (*pb.User, error) {
+	user, err := svr.service.UpdateUser(ctx, users.UserUpdate{
+		ID:              userUpdate.Id,
+		FirstName:       userUpdate.FirstName,
+		LastName:        userUpdate.LastName,
+		Password:        userUpdate.Password,
+		ConfirmPassword: userUpdate.ConfirmPassword,
+		Country:         userUpdate.Country,
+		Version:         userUpdate.Version,
+	})
+	if err != nil {
+		panic("error handling not implemented")
+	}
+	return pbUserFromUser(&user), nil
 }
