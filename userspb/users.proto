@@ -1,0 +1,63 @@
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/robotlovesyou/fitest/userspb";
+
+message NewUser {
+    string first_name = 1;
+    string last_name = 2;
+    string nickname = 3;
+    string password = 4;
+    string confirmPassword = 5;
+    string email = 6;
+    string country  = 7;
+}
+
+message User {
+    string id = 1;
+    string first_name = 2;
+    string last_name = 3;
+    string nickname = 4;
+    string email = 5;
+    string country  = 6;
+    string created_at = 7;
+    string updated_at = 8;
+    int32 version = 9;
+}
+
+message Update {
+    string id = 1;
+    string first_name = 2;
+    string last_name = 3;
+    string password = 4;
+    string confirmPassword = 5;
+    string country  = 6;
+    int32 version = 7;
+}
+
+message Ref {
+    string id = 1;
+}
+
+message Query {
+    string created_after = 1;
+    string country = 2;
+    int32 length = 3;
+    int32 page = 4;
+}
+
+message Page {
+    int32 page = 1;
+    int32 total = 2;
+    repeated User items = 3;
+}
+
+service Users {
+    rpc CreateUser(NewUser) returns (User) {}
+    rpc UpdateUser(Update) returns (User) {}
+    rpc DeleteUser(Ref) returns (google.protobuf.Empty) {}
+    // Since the length can be limited it is possible to guarantee that the page size will not exceed the maximum message size
+    // so for the sake of simplicity I am not implementing this method using a stream result
+    rpc FindUsers(Query) returns (Page) {}
+}
+
