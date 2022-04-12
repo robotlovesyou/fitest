@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/robotlovesyou/fitest/pkg/users"
+	"github.com/robotlovesyou/fitest/pkg/user"
 	"github.com/robotlovesyou/fitest/userspb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,10 +19,10 @@ const (
 
 // UsersService defines the interface for the service RPCServer delegates its implementation logic to
 type UsersService interface {
-	CreateUser(context.Context, users.NewUser) (users.User, error)
-	UpdateUser(context.Context, users.Update) (users.User, error)
-	DeleteUser(context.Context, users.Ref) error
-	FindUsers(context.Context, users.Query) (users.Page, error)
+	CreateUser(context.Context, user.NewUser) (user.User, error)
+	UpdateUser(context.Context, user.Update) (user.User, error)
+	DeleteUser(context.Context, user.Ref) error
+	FindUsers(context.Context, user.Query) (user.Page, error)
 }
 
 // RPCServer is an impementation of generated.UsersService.
@@ -37,7 +37,7 @@ func New(service UsersService) *RPCServer {
 	return &RPCServer{service: service}
 }
 
-func pbUserFromUser(user *users.User) *userspb.User {
+func pbUserFromUser(user *user.User) *userspb.User {
 	return &userspb.User{
 		Id:        user.ID.String(),
 		FirstName: user.FirstName,
@@ -50,7 +50,7 @@ func pbUserFromUser(user *users.User) *userspb.User {
 	}
 }
 
-func pbPageFromPage(page *users.Page) *userspb.Page {
+func pbPageFromPage(page *user.Page) *userspb.Page {
 	items := make([]*userspb.User, 0, len(page.Items))
 	for _, itm := range page.Items {
 		items = append(items, pbUserFromUser(&itm))
@@ -63,7 +63,7 @@ func pbPageFromPage(page *users.Page) *userspb.Page {
 }
 
 func (svr *RPCServer) CreateUser(ctx context.Context, newUser *userspb.NewUser) (*userspb.User, error) {
-	user, err := svr.service.CreateUser(ctx, users.NewUser{
+	usr, err := svr.service.CreateUser(ctx, user.NewUser{
 		FirstName:       newUser.FirstName,
 		LastName:        newUser.LastName,
 		Nickname:        newUser.Nickname,
@@ -76,20 +76,20 @@ func (svr *RPCServer) CreateUser(ctx context.Context, newUser *userspb.NewUser) 
 		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
 		// In a real world implementation I would, where appropriate, include detail via status details.
 		switch {
-		case errors.Is(err, users.ErrAlreadyExists):
+		case errors.Is(err, user.ErrAlreadyExists):
 			return nil, status.Error(codes.AlreadyExists, err.Error())
-		case errors.Is(err, users.ErrInvalid):
+		case errors.Is(err, user.ErrInvalid):
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		default:
 			return nil, status.Error(codes.Internal, msgInternalServerError)
 		}
 	}
 
-	return pbUserFromUser(&user), nil
+	return pbUserFromUser(&usr), nil
 }
 
 func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *userspb.Update) (*userspb.User, error) {
-	user, err := svr.service.UpdateUser(ctx, users.Update{
+	usr, err := svr.service.UpdateUser(ctx, user.Update{
 		ID:              userUpdate.Id,
 		FirstName:       userUpdate.FirstName,
 		LastName:        userUpdate.LastName,
@@ -102,27 +102,27 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *userspb.Update
 		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
 		// In a real world implementation I would, where appropriate, include detail via status details.
 		switch {
-		case errors.Is(err, users.ErrNotFound):
+		case errors.Is(err, user.ErrNotFound):
 			return nil, status.Error(codes.NotFound, err.Error())
-		case errors.Is(err, users.ErrInvalid):
+		case errors.Is(err, user.ErrInvalid):
 			return nil, status.Error(codes.InvalidArgument, err.Error())
-		case errors.Is(err, users.ErrInvalidVersion):
+		case errors.Is(err, user.ErrInvalidVersion):
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		default:
 			return nil, status.Error(codes.Internal, msgInternalServerError)
 		}
 	}
-	return pbUserFromUser(&user), nil
+	return pbUserFromUser(&usr), nil
 }
 
 func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *userspb.Ref) (*emptypb.Empty, error) {
-	if err := svr.service.DeleteUser(ctx, users.Ref{ID: userRef.Id}); err != nil {
+	if err := svr.service.DeleteUser(ctx, user.Ref{ID: userRef.Id}); err != nil {
 		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
 		// In a real world implementation I would, where appropriate, include detail via status details.
 		switch {
-		case errors.Is(err, users.ErrNotFound):
+		case errors.Is(err, user.ErrNotFound):
 			return nil, status.Error(codes.NotFound, err.Error())
-		case errors.Is(err, users.ErrInvalid):
+		case errors.Is(err, user.ErrInvalid):
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		default:
 			return nil, status.Error(codes.Internal, msgInternalServerError)
@@ -132,7 +132,7 @@ func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *userspb.Ref) (*em
 }
 
 func (svr *RPCServer) FindUsers(ctx context.Context, query *userspb.Query) (*userspb.Page, error) {
-	page, err := svr.service.FindUsers(ctx, users.Query{
+	page, err := svr.service.FindUsers(ctx, user.Query{
 		CreatedAfter: query.CreatedAfter,
 		Country:      query.Country,
 		Length:       query.Length,
