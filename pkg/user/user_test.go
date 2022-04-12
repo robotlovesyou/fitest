@@ -3,9 +3,11 @@ package user_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/bxcodec/faker/v3"
+	"github.com/robotlovesyou/fitest/pkg/password"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/user"
 	"github.com/stretchr/testify/require"
@@ -48,10 +50,44 @@ func (store *stubUserStore) Create(ctx context.Context, rec *userstore.User) (us
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-const hashStrength = bcrypt.MinCost
+type option interface {
+	isoption()
+}
 
-func withService(store *stubUserStore, f func(service *user.Service)) {
-	f(user.New(store, hashStrength))
+type hasherOpt struct {
+	hasher user.PasswordHasher
+}
+
+func withHasher(hasher user.PasswordHasher) hasherOpt {
+	return hasherOpt{hasher: hasher}
+}
+
+func (ho hasherOpt) isoption() {}
+
+// badHasher implements user.PasswordHasher and fails for all calls
+type badHasher struct{}
+
+func (bh badHasher) Hash(string) (string, error) {
+	return "", errors.New("failed")
+}
+
+func (bh badHasher) Compare(string, string) bool {
+	return false
+}
+
+func withService(store *stubUserStore, options ...option) func(func(*user.Service)) {
+	hasher := user.PasswordHasher(password.NewWeak())
+
+	for _, o := range options {
+		switch opt := o.(type) {
+		case hasherOpt:
+			hasher = opt.hasher
+		}
+	}
+
+	return func(f func(service *user.Service)) {
+		f(user.New(store, hasher))
+	}
 }
 
 func emptyID(id [16]byte) bool {
@@ -66,9 +102,9 @@ func compareIDs(a [16]byte, b [16]byte) bool {
 func checkPasswordHash(hashed, plain string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain)) == nil
 }
-func TestNewUserCallsStoreWithCorrectParameters(t *testing.T) {
-	store := newStubUserStore()
-	newUser := &user.NewUser{
+
+func fakeNewUser() user.NewUser {
+	return user.NewUser{
 		FirstName:       faker.FirstName(),
 		LastName:        faker.LastName(),
 		Nickname:        faker.Username(),
@@ -77,7 +113,11 @@ func TestNewUserCallsStoreWithCorrectParameters(t *testing.T) {
 		Email:           faker.Email(),
 		Country:         "DE",
 	}
-	withService(store, func(service *user.Service) {
+}
+func TestNewUserCallsStoreWithCorrectParameters(t *testing.T) {
+	store := newStubUserStore()
+	newUser := fakeNewUser()
+	withService(store)(func(service *user.Service) {
 		var storeUser userstore.User
 		store.stubCreate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			storeUser = *usr
@@ -93,7 +133,7 @@ func TestNewUserCallsStoreWithCorrectParameters(t *testing.T) {
 			require.Equal(t, user.DefaultVersion, usr.Version)
 			return *usr, nil
 		}
-		usr, err := service.Create(context.Background(), newUser)
+		usr, err := service.Create(context.Background(), &newUser)
 		require.NoError(t, err)
 		require.True(t, compareIDs(usr.ID, storeUser.ID))
 		require.Equal(t, newUser.FirstName, usr.FirstName)
@@ -105,5 +145,14 @@ func TestNewUserCallsStoreWithCorrectParameters(t *testing.T) {
 		require.Equal(t, storeUser.CreatedAt, usr.CreatedAt)
 		require.Equal(t, storeUser.UpdatedAt, usr.UpdatedAt)
 		require.Equal(t, user.DefaultVersion, usr.Version)
+	})
+}
+
+func TestErrorReturnedWhenHashingFails(t *testing.T) {
+	store := newStubUserStore()
+	newUser := fakeNewUser()
+	withService(store, withHasher(badHasher{}))(func(service *user.Service) {
+		_, err := service.Create(context.Background(), &newUser)
+		require.Error(t, err)
 	})
 }

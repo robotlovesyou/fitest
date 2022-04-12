@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -84,19 +83,25 @@ type Page struct {
 }
 
 type Service struct {
-	store UserStore
-	cost  int // cost for bcrypt password hashes
+	store  UserStore
+	hasher PasswordHasher
 }
 
-func New(store UserStore, cost int) *Service {
-	return &Service{store: store, cost: cost}
+func New(store UserStore, hasher PasswordHasher) *Service {
+	return &Service{store: store, hasher: hasher}
 }
 
 type UserStore interface {
 	Create(context.Context, *userstore.User) (userstore.User, error)
 }
 
-func (service *Service) Create(ctx context.Context, newUser *NewUser) (User, error) {
+// Interface for password hasher.
+type PasswordHasher interface {
+	Hash(string) (string, error)
+	Compare(hash string, plain string) bool
+}
+
+func (service *Service) Create(ctx context.Context, newUser *NewUser) (user User, err error) {
 	// TODO provide a dependency to do this so that we can test failure
 	id, err := uuid.NewRandom()
 	if err != nil {
@@ -104,9 +109,9 @@ func (service *Service) Create(ctx context.Context, newUser *NewUser) (User, err
 	}
 
 	// TODO provide a dependency to do this so that we can test failure
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(newUser.Password), service.cost)
+	passwordHash, err := service.hasher.Hash(newUser.Password)
 	if err != nil {
-		panic("error handling is not implemented yet")
+		return user, err
 	}
 
 	usr, err := service.store.Create(ctx, &userstore.User{
