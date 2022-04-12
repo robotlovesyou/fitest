@@ -1,10 +1,13 @@
 package user
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/robotlovesyou/fitest/pkg/store/userstore"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -12,6 +15,8 @@ const (
 	MaxPageLength = 100
 	// TimeFormat is the formatting string used by the users package
 	TimeFormat = time.RFC3339
+	// DefaultVersion is the version for new users
+	DefaultVersion = int32(1)
 )
 
 var (
@@ -48,6 +53,7 @@ type User struct {
 	Country      string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	Version      int32
 }
 
 type Update struct {
@@ -75,4 +81,61 @@ type Page struct {
 	Page  int32
 	Total int32
 	Items []User
+}
+
+type Service struct {
+	store UserStore
+	cost  int // cost for bcrypt password hashes
+}
+
+func New(store UserStore, cost int) *Service {
+	return &Service{store: store, cost: cost}
+}
+
+type UserStore interface {
+	Create(context.Context, *userstore.User) (userstore.User, error)
+}
+
+func (service *Service) Create(ctx context.Context, newUser *NewUser) (User, error) {
+	// TODO provide a dependency to do this so that we can test failure
+	id, err := uuid.NewRandom()
+	if err != nil {
+		panic("error handling is not implemented yet")
+	}
+
+	// TODO provide a dependency to do this so that we can test failure
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(newUser.Password), service.cost)
+	if err != nil {
+		panic("error handling is not implemented yet")
+	}
+
+	usr, err := service.store.Create(ctx, &userstore.User{
+
+		ID:           id,
+		FirstName:    newUser.FirstName,
+		LastName:     newUser.LastName,
+		Nickname:     newUser.Nickname,
+		PasswordHash: string(passwordHash),
+		Email:        newUser.Email,
+		Country:      newUser.Country,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		Version:      DefaultVersion,
+	})
+	if err != nil {
+		panic("error handling is not implemented yet")
+	}
+
+	return User{
+		ID:           usr.ID,
+		FirstName:    usr.FirstName,
+		LastName:     usr.LastName,
+		Nickname:     usr.Nickname,
+		PasswordHash: usr.PasswordHash,
+		Email:        usr.Email,
+		Country:      usr.Country,
+		CreatedAt:    usr.CreatedAt,
+		UpdatedAt:    usr.UpdatedAt,
+		Version:      usr.Version,
+	}, nil
 }

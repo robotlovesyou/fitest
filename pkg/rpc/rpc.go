@@ -1,3 +1,5 @@
+// package rpc implements a userspb.UsersServer, depending on an implementation of UsersService
+// to process requests
 package rpc
 
 import (
@@ -19,13 +21,13 @@ const (
 
 // UsersService defines the interface for the service RPCServer delegates its implementation logic to
 type UsersService interface {
-	CreateUser(context.Context, user.NewUser) (user.User, error)
-	UpdateUser(context.Context, user.Update) (user.User, error)
-	DeleteUser(context.Context, user.Ref) error
-	FindUsers(context.Context, user.Query) (user.Page, error)
+	CreateUser(context.Context, *user.NewUser) (user.User, error)
+	UpdateUser(context.Context, *user.Update) (user.User, error)
+	DeleteUser(context.Context, *user.Ref) error
+	FindUsers(context.Context, *user.Query) (user.Page, error)
 }
 
-// RPCServer is an impementation of generated.UsersService.
+// RPCServer is an impementation of userspb.UsersService.
 // It delegates all call handling logic to its UsersService, and is only responsible for converting
 // back and forth between the types used by generated.UsersService and UsersService
 type RPCServer struct {
@@ -33,10 +35,12 @@ type RPCServer struct {
 	service UsersService
 }
 
+// New creates a new RPCServer which will delegate processing to its UsersService dependency
 func New(service UsersService) *RPCServer {
 	return &RPCServer{service: service}
 }
 
+// pbUserFromUser converts a user.User into a userspb.User
 func pbUserFromUser(user *user.User) *userspb.User {
 	return &userspb.User{
 		Id:        user.ID.String(),
@@ -50,6 +54,7 @@ func pbUserFromUser(user *user.User) *userspb.User {
 	}
 }
 
+// pbPageFromPage converts a user.Page into a userspb.Page
 func pbPageFromPage(page *user.Page) *userspb.Page {
 	items := make([]*userspb.User, 0, len(page.Items))
 	for _, itm := range page.Items {
@@ -62,8 +67,9 @@ func pbPageFromPage(page *user.Page) *userspb.Page {
 	}
 }
 
+// CreateUser implements the userspb.UsersServer.CreateUser function, allowing clients to create new users
 func (svr *RPCServer) CreateUser(ctx context.Context, newUser *userspb.NewUser) (*userspb.User, error) {
-	usr, err := svr.service.CreateUser(ctx, user.NewUser{
+	usr, err := svr.service.CreateUser(ctx, &user.NewUser{
 		FirstName:       newUser.FirstName,
 		LastName:        newUser.LastName,
 		Nickname:        newUser.Nickname,
@@ -88,8 +94,9 @@ func (svr *RPCServer) CreateUser(ctx context.Context, newUser *userspb.NewUser) 
 	return pbUserFromUser(&usr), nil
 }
 
+// UpdateUser implements the userspb.UsersServer.UpdateUser function, allowing clients to update existing users
 func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *userspb.Update) (*userspb.User, error) {
-	usr, err := svr.service.UpdateUser(ctx, user.Update{
+	usr, err := svr.service.UpdateUser(ctx, &user.Update{
 		ID:              userUpdate.Id,
 		FirstName:       userUpdate.FirstName,
 		LastName:        userUpdate.LastName,
@@ -115,8 +122,9 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *userspb.Update
 	return pbUserFromUser(&usr), nil
 }
 
+// DeleteUser implements the userspb.UsersServer.DeleteUser function, allowing clients to delete users
 func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *userspb.Ref) (*emptypb.Empty, error) {
-	if err := svr.service.DeleteUser(ctx, user.Ref{ID: userRef.Id}); err != nil {
+	if err := svr.service.DeleteUser(ctx, &user.Ref{ID: userRef.Id}); err != nil {
 		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
 		// In a real world implementation I would, where appropriate, include detail via status details.
 		switch {
@@ -131,8 +139,9 @@ func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *userspb.Ref) (*em
 	return &emptypb.Empty{}, nil
 }
 
+// FindUsers implements the userspb.UsersServer.FindUsers function, allowing clients to find users and page through results
 func (svr *RPCServer) FindUsers(ctx context.Context, query *userspb.Query) (*userspb.Page, error) {
-	page, err := svr.service.FindUsers(ctx, user.Query{
+	page, err := svr.service.FindUsers(ctx, &user.Query{
 		CreatedAfter: query.CreatedAfter,
 		Country:      query.Country,
 		Length:       query.Length,
