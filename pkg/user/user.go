@@ -83,12 +83,13 @@ type Page struct {
 }
 
 type Service struct {
-	store  UserStore
-	hasher PasswordHasher
+	store       UserStore
+	hasher      PasswordHasher
+	idGenerator IDGenerator
 }
 
-func New(store UserStore, hasher PasswordHasher) *Service {
-	return &Service{store: store, hasher: hasher}
+func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator) *Service {
+	return &Service{store: store, hasher: hasher, idGenerator: idGenerator}
 }
 
 type UserStore interface {
@@ -101,14 +102,15 @@ type PasswordHasher interface {
 	Compare(hash string, plain string) bool
 }
 
+type IDGenerator func() (uuid.UUID, error)
+
 func (service *Service) Create(ctx context.Context, newUser *NewUser) (user User, err error) {
 	// TODO provide a dependency to do this so that we can test failure
-	id, err := uuid.NewRandom()
+	id, err := service.idGenerator()
 	if err != nil {
-		panic("error handling is not implemented yet")
+		return user, err
 	}
 
-	// TODO provide a dependency to do this so that we can test failure
 	passwordHash, err := service.hasher.Hash(newUser.Password)
 	if err != nil {
 		return user, err

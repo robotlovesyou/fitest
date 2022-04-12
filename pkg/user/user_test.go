@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/bxcodec/faker/v3"
+	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/password"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/user"
@@ -75,18 +76,31 @@ func (bh badHasher) Compare(string, string) bool {
 	return false
 }
 
+type idGenOpt struct {
+	idGenerator user.IDGenerator
+}
+
+func withIDGenerator(idGenerator user.IDGenerator) idGenOpt {
+	return idGenOpt{idGenerator: idGenerator}
+}
+
+func (igo idGenOpt) isoption() {}
+
 func withService(store *stubUserStore, options ...option) func(func(*user.Service)) {
 	hasher := user.PasswordHasher(password.NewWeak())
+	idGenerator := uuid.NewRandom
 
 	for _, o := range options {
 		switch opt := o.(type) {
 		case hasherOpt:
 			hasher = opt.hasher
+		case idGenOpt:
+			idGenerator = opt.idGenerator
 		}
 	}
 
 	return func(f func(service *user.Service)) {
-		f(user.New(store, hasher))
+		f(user.New(store, hasher, idGenerator))
 	}
 }
 
@@ -152,6 +166,16 @@ func TestErrorReturnedWhenHashingFails(t *testing.T) {
 	store := newStubUserStore()
 	newUser := fakeNewUser()
 	withService(store, withHasher(badHasher{}))(func(service *user.Service) {
+		_, err := service.Create(context.Background(), &newUser)
+		require.Error(t, err)
+	})
+}
+
+func TestErrorReturnedWhenIDGenerationFails(t *testing.T) {
+	store := newStubUserStore()
+	newUser := fakeNewUser()
+	badIDGenerator := func() (uuid.UUID, error) { return uuid.Nil, errors.New("failed") }
+	withService(store, withIDGenerator(badIDGenerator))(func(service *user.Service) {
 		_, err := service.Create(context.Background(), &newUser)
 		require.Error(t, err)
 	})
