@@ -181,7 +181,7 @@ func usersPageFromQuery(query user.Query) user.Page {
 	}
 	return user.Page{
 		Page:  query.Page,
-		Total: query.Page * query.Length,
+		Total: query.Page * int64(query.Length),
 		Items: items,
 	}
 }

@@ -29,12 +29,14 @@ type stubCreate func(context.Context, *userstore.User) (userstore.User, error)
 type stubUpdate func(context.Context, *userstore.User) (userstore.User, error)
 type stubReadOne func(context.Context, [16]byte) (userstore.User, error)
 type stubDeleteOne func(context.Context, [16]byte) error
+type stubFindMany func(context.Context, *userstore.Query) (userstore.Page, error)
 
 type stubUserStore struct {
 	stubCreate    stubCreate
 	stubUpdate    stubUpdate
 	stubReadOne   stubReadOne
 	stubDeleteOne stubDeleteOne
+	stubFindMany  stubFindMany
 }
 
 func newStubUserStore() *stubUserStore {
@@ -50,6 +52,9 @@ func newStubUserStore() *stubUserStore {
 		},
 		stubDeleteOne: func(context.Context, [16]byte) error {
 			panic("stub delete one")
+		},
+		stubFindMany: func(context.Context, *userstore.Query) (userstore.Page, error) {
+			panic("stub find many")
 		},
 	}
 }
@@ -68,6 +73,10 @@ func (store *stubUserStore) ReadOne(ctx context.Context, id [16]byte) (userstore
 
 func (store *stubUserStore) DeleteOne(ctx context.Context, id [16]byte) error {
 	return store.stubDeleteOne(ctx, id)
+}
+
+func (store *stubUserStore) FindMany(ctx context.Context, query *userstore.Query) (userstore.Page, error) {
+	return store.stubFindMany(ctx, query)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

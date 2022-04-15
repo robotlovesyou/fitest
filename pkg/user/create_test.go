@@ -214,7 +214,8 @@ func TestCorrectErrorIsReturnedForInvalidNewUser(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+		thisCase := c
+		t.Run(thisCase.name, func(t *testing.T) {
 			store := newStubUserStore()
 			withService(store)(func(service *user.Service) {
 				store.stubCreate = func(context.Context, *userstore.User) (userstore.User, error) {

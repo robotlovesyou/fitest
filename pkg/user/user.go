@@ -75,12 +75,12 @@ type Query struct {
 	CreatedAfter string
 	Country      string
 	Length       int32
-	Page         int32
+	Page         int64
 }
 
 type Page struct {
-	Page  int32
-	Total int32
+	Page  int64
+	Total int64
 	Items []User
 }
 
@@ -105,6 +105,7 @@ type UserStore interface {
 	Update(context.Context, *userstore.User) (userstore.User, error)
 	ReadOne(context.Context, [16]byte) (userstore.User, error)
 	DeleteOne(context.Context, [16]byte) error
+	FindMany(context.Context, *userstore.Query) (userstore.Page, error)
 }
 
 // Interface for password hasher.
@@ -239,4 +240,30 @@ func (service *Service) DeleteUser(ctx context.Context, ref *Ref) error {
 	}
 
 	return nil
+}
+
+func (service *Service) FindUsers(ctx context.Context, query *Query) (Page, error) {
+	ca, err := time.Parse(TimeFormat, query.CreatedAfter)
+	if err != nil {
+		// TODO: this can just set ca to time.Zero
+		panic("error handling not implemented")
+	}
+	page, err := service.store.FindMany(ctx, &userstore.Query{
+		CreatedAfter: ca,
+		Country:      query.Country,
+		Length:       query.Length,
+		Page:         query.Page,
+	})
+	if err != nil {
+		panic("error handling not implemented")
+	}
+	items := make([]User, 0, len(page.Items))
+	for _, itm := range page.Items {
+		items = append(items, copyStoreUserToUser(&itm))
+	}
+	return Page{
+		Page:  page.Page,
+		Total: page.Total,
+		Items: items,
+	}, nil
 }

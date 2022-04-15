@@ -158,7 +158,8 @@ func TestForErrorWhenUpdateContainsInvalidValues(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+		thisCase := c
+		t.Run(thisCase.name, func(t *testing.T) {
 			store := newStubUserStore()
 			withService(store)(func(service *user.Service) {
 				store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
@@ -271,7 +272,8 @@ func TestForErrorUpdatingUserWhenStoreUpdateFails(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+		thisCase := c
+		t.Run(thisCase.name, func(t *testing.T) {
 			store := newStubUserStore()
 			update := fakeUserUpdate()
 			rec := fakeUserRecord(func(r *userstore.User) {
@@ -282,10 +284,10 @@ func TestForErrorUpdatingUserWhenStoreUpdateFails(t *testing.T) {
 					return rec, nil
 				}
 				store.stubUpdate = func(context.Context, *userstore.User) (rec userstore.User, err error) {
-					return rec, c.result
+					return rec, thisCase.result
 				}
 				_, err := service.Update(context.Background(), &update)
-				require.ErrorIs(t, err, c.expected)
+				require.ErrorIs(t, err, thisCase.expected)
 			})
 		})
 	}

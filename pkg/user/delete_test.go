@@ -60,15 +60,16 @@ func TestDeleteReturnsCorrectErrorWhenStoreDeleteFails(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+		thisCase := c
+		t.Run(thisCase.name, func(t *testing.T) {
 			userRef := fakeUserRef()
 			storeStub := newStubUserStore()
 			withService(storeStub)(func(service *user.Service) {
 				storeStub.stubDeleteOne = func(ctx context.Context, id [16]byte) error {
-					return c.result
+					return thisCase.result
 				}
 				err := service.DeleteUser(context.Background(), &userRef)
-				require.ErrorIs(t, err, c.expected)
+				require.ErrorIs(t, err, thisCase.expected)
 			})
 		})
 	}

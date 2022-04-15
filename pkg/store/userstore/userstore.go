@@ -46,4 +46,17 @@ type Record struct {
 	Events []Event  `bson:"events"`
 }
 
+type Query struct {
+	CreatedAfter time.Time
+	Country      string
+	Length       int32
+	Page         int64
+}
+
+type Page struct {
+	Page  int64
+	Total int64
+	Items []User
+}
+
 // TODO: check whether the store correctly stores a uuid.UUID in the same format as [16]byte (it should)

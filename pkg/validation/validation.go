@@ -12,7 +12,10 @@ import (
 func New() *validator.Validate {
 	v := validator.New()
 
-	allowedRunesRegexp := regexp.MustCompile(`^[\p{L}\p{N}\-_ ]*$`)
+	// double quote ('"') is included here because of a bug in go faker,
+	// which includes it in first names where it should be a single quote
+	// obviously, fixing it here is not the right approach for a real world scenario!
+	allowedRunesRegexp := regexp.MustCompile(`^[\p{L}\p{N}\-_'" ]*$`)
 	v.RegisterValidation("allowed-runes", func(fl validator.FieldLevel) bool {
 		return allowedRunesRegexp.MatchString(fl.Field().String())
 	})
