@@ -26,9 +26,13 @@ const bobbyTables = "Robert'); DROP TABLE Students;--"
 ////////////////////////////////////////////////////////////////////////////////
 
 type stubCreate func(context.Context, *userstore.User) (userstore.User, error)
+type stubUpdate func(context.Context, *userstore.User) (userstore.User, error)
+type stubReadOne func(context.Context, [16]byte) (userstore.User, error)
 
 type stubUserStore struct {
-	stubCreate stubCreate
+	stubCreate  stubCreate
+	stubUpdate  stubUpdate
+	stubReadOne stubReadOne
 }
 
 func newStubUserStore() *stubUserStore {
@@ -36,11 +40,25 @@ func newStubUserStore() *stubUserStore {
 		stubCreate: func(context.Context, *userstore.User) (userstore.User, error) {
 			panic("stub create")
 		},
+		stubUpdate: func(context.Context, *userstore.User) (userstore.User, error) {
+			panic("stub update")
+		},
+		stubReadOne: func(context.Context, [16]byte) (userstore.User, error) {
+			panic("stub read one")
+		},
 	}
 }
 
 func (store *stubUserStore) Create(ctx context.Context, rec *userstore.User) (userstore.User, error) {
 	return store.stubCreate(ctx, rec)
+}
+
+func (store *stubUserStore) Update(ctx context.Context, rec *userstore.User) (userstore.User, error) {
+	return store.stubUpdate(ctx, rec)
+}
+
+func (store *stubUserStore) ReadOne(ctx context.Context, id [16]byte) (userstore.User, error) {
+	return store.stubReadOne(ctx, id)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
