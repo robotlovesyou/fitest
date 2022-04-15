@@ -18,6 +18,10 @@ const (
 	TimeFormat = time.RFC3339
 	// DefaultVersion is the version for new users
 	DefaultVersion = int32(1)
+	// DefaultPage is the default page for finding users when none is provided
+	DefaultPage = int64(1)
+	// DefaultLength is the default page length for finding users when none is provided
+	DefaultLength = int32(25)
 )
 
 var (
@@ -242,11 +246,16 @@ func (service *Service) DeleteUser(ctx context.Context, ref *Ref) error {
 	return nil
 }
 
-func (service *Service) FindUsers(ctx context.Context, query *Query) (Page, error) {
+func (service *Service) FindUsers(ctx context.Context, query *Query) (p Page, err error) {
 	ca, err := time.Parse(TimeFormat, query.CreatedAfter)
 	if err != nil {
-		// TODO: this can just set ca to time.Zero
-		panic("error handling not implemented")
+		ca = time.Time{} // pass zero time as the default, because everything is created afterward
+	}
+	if query.Page == 0 {
+		query.Page = DefaultPage
+	}
+	if query.Length == 0 {
+		query.Length = DefaultLength
 	}
 	page, err := service.store.FindMany(ctx, &userstore.Query{
 		CreatedAfter: ca,
@@ -255,7 +264,7 @@ func (service *Service) FindUsers(ctx context.Context, query *Query) (Page, erro
 		Page:         query.Page,
 	})
 	if err != nil {
-		panic("error handling not implemented")
+		return p, fmt.Errorf("cannot find users in store: %w", err)
 	}
 	items := make([]User, 0, len(page.Items))
 	for _, itm := range page.Items {

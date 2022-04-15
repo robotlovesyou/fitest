@@ -2,6 +2,7 @@ package user_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -32,12 +33,6 @@ func fakePage(n, p int64) userstore.Page {
 }
 
 func TestCorrectParametersPassedToStoreFind(t *testing.T) {
-	// create a fake query
-	// create a fake response page
-	// create a stub store
-	// create the service
-	// set up the stub to check the incoming parameters
-	// check the values in the result, including each user
 	query := fakeQuery()
 	page := fakePage(int64(query.Length), query.Page)
 	storeStub := newStubUserStore()
@@ -67,5 +62,37 @@ func TestCorrectParametersPassedToStoreFind(t *testing.T) {
 			require.Equal(t, usr.Version, p.Items[i].Version)
 		}
 	})
+}
 
+func TestCorrectDefaultsAreSetForFindManyWhenQueryHasMissingFields(t *testing.T) {
+	query := user.Query{}
+	page := fakePage(int64(user.DefaultLength), user.DefaultPage)
+	storeStub := newStubUserStore()
+	withService(storeStub)(func(service *user.Service) {
+		storeStub.stubFindMany = func(ctx context.Context, q *userstore.Query) (userstore.Page, error) {
+			require.True(t, q.CreatedAfter.IsZero())
+			require.Equal(t, "", q.Country)
+			require.Equal(t, user.DefaultLength, q.Length)
+			require.Equal(t, user.DefaultPage, q.Page)
+			return page, nil
+		}
+		p, err := service.FindUsers(context.Background(), &query)
+		require.NoError(t, err)
+		require.Equal(t, page.Page, p.Page)
+		require.Equal(t, page.Total, p.Total)
+		require.Len(t, p.Items, len(page.Items))
+	})
+}
+
+func TestOriginalErrorIsInChainWhenStoreFindReturnsError(t *testing.T) {
+	query := user.Query{}
+	unexpected := errors.New("some unexpected error")
+	storeStub := newStubUserStore()
+	withService(storeStub)(func(service *user.Service) {
+		storeStub.stubFindMany = func(context.Context, *userstore.Query) (userstore.Page, error) {
+			return userstore.Page{}, unexpected
+		}
+		_, err := service.FindUsers(context.Background(), &query)
+		require.ErrorIs(t, err, unexpected)
+	})
 }
