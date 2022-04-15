@@ -7,14 +7,16 @@ import (
 	"testing"
 
 	"github.com/bxcodec/faker/v3"
-	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/password"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/user"
+	"github.com/robotlovesyou/fitest/pkg/validation"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
+
+const bobbyTables = "Robert'); DROP TABLE Students;--"
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,7 +103,7 @@ func withService(store *stubUserStore, options ...option) func(func(*user.Servic
 	}
 
 	return func(f func(service *user.Service)) {
-		f(user.New(store, hasher, idGenerator, validator.New()))
+		f(user.New(store, hasher, idGenerator, validation.New()))
 	}
 }
 
@@ -222,18 +224,13 @@ func TestCorrectErrorIsReturnedWhenStoreReturnsErrAlreadyExists(t *testing.T) {
 }
 
 func TestCorrectErrorIsReturnedForInvalidNewUser(t *testing.T) {
-	// Test for each required field missing
-	// Test for illegal values in each field
-	// Test for invalid email
-	// Test for password too short
-	// Test for password and confirmation do not match
-
 	// In a real world implementation, the validation would need to return information rich enough to allow the consumer to
 	// address the issue, because "computer says 'No'" is not very helpful, but it will do for here, hopefully!
 	cases := []struct {
 		name    string
 		newUser user.NewUser
 	}{
+		// Tests for missing fields
 		{
 			name: "No first name",
 			newUser: fakeNewUser(func(nu *user.NewUser) {
@@ -274,6 +271,52 @@ func TestCorrectErrorIsReturnedForInvalidNewUser(t *testing.T) {
 			name: "No Country",
 			newUser: fakeNewUser(func(nu *user.NewUser) {
 				nu.Country = ""
+			}),
+		},
+		// Tests for invalid fields
+		{
+			name: "Bad First Name",
+			newUser: fakeNewUser(func(nu *user.NewUser) {
+				nu.FirstName = bobbyTables
+			}),
+		},
+		{
+			name: "Bad last name",
+			newUser: fakeNewUser(func(nu *user.NewUser) {
+				nu.LastName = bobbyTables
+			}),
+		},
+		{
+			name: "Bad Nickname",
+			newUser: fakeNewUser(func(nu *user.NewUser) {
+				nu.Nickname = bobbyTables
+			}),
+		},
+		{
+			name: "Bad Email",
+			newUser: fakeNewUser(func(nu *user.NewUser) {
+				nu.Email = "not an email address"
+			}),
+		},
+		{
+			name: "Bad Country",
+			newUser: fakeNewUser(func(nu *user.NewUser) {
+				nu.Country = "123"
+			}),
+		},
+		// Bad Password Tests
+		// Password Policies are often more complex than implemented here
+		{
+			name: "Bad Password Conformation",
+			newUser: fakeNewUser(func(nu *user.NewUser) {
+				nu.Password = "supersecret"
+				nu.ConfirmPassword = "notsupersecret"
+			}),
+		},
+		{
+			name: "Short Password",
+			newUser: fakeNewUser(func(nu *user.NewUser) {
+				nu.Password = "short"
 			}),
 		},
 	}

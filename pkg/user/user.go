@@ -35,13 +35,13 @@ var (
 )
 
 type NewUser struct {
-	FirstName       string `validate:"required"`
-	LastName        string `validate:"required"`
-	Nickname        string `validate:"required"`
-	Password        string `validate:"required"`
-	ConfirmPassword string `validate:"required"`
-	Email           string `validate:"required"`
-	Country         string `validate:"required"`
+	FirstName       string `validate:"required,allowed-runes"`
+	LastName        string `validate:"required,allowed-runes"`
+	Nickname        string `validate:"required,allowed-runes"`
+	Password        string `validate:"min=10"`
+	ConfirmPassword string `validate:"required,eqfield=Password"`
+	Email           string `validate:"required,email"`
+	Country         string `validate:"required,iso3166_1_alpha2"`
 }
 
 type User struct {
