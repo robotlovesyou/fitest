@@ -104,6 +104,7 @@ type UserStore interface {
 	Create(context.Context, *userstore.User) (userstore.User, error)
 	Update(context.Context, *userstore.User) (userstore.User, error)
 	ReadOne(context.Context, [16]byte) (userstore.User, error)
+	DeleteOne(context.Context, [16]byte) error
 }
 
 // Interface for password hasher.
@@ -222,4 +223,13 @@ func (service *Service) Update(ctx context.Context, update *Update) (usr User, e
 		return usr, fmt.Errorf("unexpected error updating user store: %w", err)
 	}
 	return copyStoreUserToUser(&rec), nil
+}
+
+func (service *Service) DeleteUser(ctx context.Context, ref *Ref) error {
+	id := uuid.MustParse(ref.ID) // TODO: Ensure this is validated before call
+	if err := service.store.DeleteOne(ctx, id); err != nil {
+		panic("error handling not implemented")
+	}
+
+	return nil
 }

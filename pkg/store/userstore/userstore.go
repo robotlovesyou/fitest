@@ -45,3 +45,5 @@ type Record struct {
 	Data   User     `bson:"data"`
 	Events []Event  `bson:"events"`
 }
+
+// TODO: check whether the store correctly stores a uuid.UUID in the same format as [16]byte (it should)
