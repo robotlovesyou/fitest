@@ -250,6 +250,8 @@ func (service *Service) FindUsers(ctx context.Context, query *Query) (p Page, er
 	ca, err := time.Parse(TimeFormat, query.CreatedAfter)
 	if err != nil {
 		ca = time.Time{} // pass zero time as the default, because everything is created afterward
+		// This approach could be problematic if users are submitting badly formatted dates because
+		// it hides the error. One solution might be to return the query as it was understoof by the service
 	}
 	if query.Page == 0 {
 		query.Page = DefaultPage
