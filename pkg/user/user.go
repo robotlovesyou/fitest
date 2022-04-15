@@ -68,7 +68,7 @@ type Update struct {
 }
 
 type Ref struct {
-	ID string
+	ID string `validate:"uuid"`
 }
 
 type Query struct {
@@ -226,9 +226,16 @@ func (service *Service) Update(ctx context.Context, update *Update) (usr User, e
 }
 
 func (service *Service) DeleteUser(ctx context.Context, ref *Ref) error {
+	if err := service.validate.Struct(ref); err != nil {
+		return ErrInvalid
+	}
+
 	id := uuid.MustParse(ref.ID) // TODO: Ensure this is validated before call
 	if err := service.store.DeleteOne(ctx, id); err != nil {
-		panic("error handling not implemented")
+		if errors.Is(err, userstore.ErrNotFound) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("cannot delete user: %w", err)
 	}
 
 	return nil
