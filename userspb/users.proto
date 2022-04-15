@@ -43,12 +43,12 @@ message Query {
     string created_after = 1;
     string country = 2;
     int32 length = 3;
-    int32 page = 4;
+    int64 page = 4;
 }
 
 message Page {
-    int32 page = 1;
-    int32 total = 2;
+    int64 page = 1;
+    int64 total = 2;
     repeated User items = 3;
 }
 

@@ -3,6 +3,7 @@ Take home tech test for Face IT
 
 # To Do
 
+* Consider defensive coding in the store or user package when accepting UUIDs. Could use parseBytes to ensure validity (test current behaviour first!)
 * Document toolchain
     * go 1.18
     * Make
