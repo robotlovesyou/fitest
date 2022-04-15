@@ -16,6 +16,8 @@ var (
 	// ErrAlreadyExists is returned when the new record cannot be inserted due to a unique constraint conflict
 	// In a real world implementation, this would need to carry enough information for the consumer to be able to address the issue
 	ErrAlreadyExists = errors.New("a user with that email or nickname already exists")
+	//ErrNotFound is returned when the requested record does not exist
+	ErrNotFound = errors.New("the requested user cannot be found in the store")
 )
 
 type User struct {

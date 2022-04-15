@@ -58,12 +58,12 @@ type User struct {
 }
 
 type Update struct {
-	ID              string
-	FirstName       string
-	LastName        string
-	Password        string
-	ConfirmPassword string
-	Country         string
+	ID              string `validate:"uuid"`
+	FirstName       string `validate:"required,allowed-runes"`
+	LastName        string `validate:"required,allowed-runes"`
+	Password        string `validate:"omitempty,min=10"`
+	ConfirmPassword string `validate:"eqfield=Password"`
+	Country         string `validate:"required,iso3166_1_alpha2"`
 	Version         int32
 }
 
@@ -171,32 +171,55 @@ func (service *Service) Create(ctx context.Context, newUser *NewUser) (user User
 	return copyStoreUserToUser(&rec), nil
 }
 
-func (service *Service) Update(ctx context.Context, update *Update) (User, error) {
-	id, err := uuid.Parse(update.ID)
-	if err != nil {
-		panic("error handling not implemented")
-		//return usr, fmt.Errorf("cannot parse id: %w", err)
+func (service *Service) updateHashIfSet(update *Update, rec *userstore.User) (err error) {
+	if len(update.Password) == 0 {
+		return nil
 	}
+	rec.PasswordHash, err = service.hasher.Hash(update.Password)
+	if err != nil {
+		return fmt.Errorf("cannot update password hash: %w", err)
+	}
+	return
+}
+
+func (service *Service) Update(ctx context.Context, update *Update) (usr User, err error) {
+	if err := service.validate.Struct(update); err != nil {
+		// In a real world implementation, the validation would need to return information rich enough to allow the consumer to
+		// address the issue, because "computer says 'No'" is not very helpful, but it will do for here, hopefully!
+		return usr, ErrInvalid
+	}
+
+	id := uuid.MustParse(update.ID) // ok to call function which can panic because id has already been validated as a uuid
 
 	rec, err := service.store.ReadOne(ctx, id)
 	if err != nil {
-		panic("error handling not implemented")
+		if errors.Is(err, userstore.ErrNotFound) {
+			return usr, ErrNotFound
+		}
+	}
+	if update.Version != rec.Version {
+		return usr, ErrInvalidVersion
 	}
 
-	passwordHash, err := service.hasher.Hash(update.Password)
-	if err != nil {
-		panic("error handling not implemented")
+	if err = service.updateHashIfSet(update, &rec); err != nil {
+		return usr, err
 	}
 
 	rec.FirstName = update.FirstName
 	rec.LastName = update.LastName
-	rec.PasswordHash = passwordHash
 	rec.Country = update.Country
 	rec.UpdatedAt = time.Now().UTC()
 	rec.Version += 1
+
 	rec, err = service.store.Update(ctx, &rec)
 	if err != nil {
-		panic("error handling not implemented")
+		if errors.Is(err, userstore.ErrNotFound) {
+			// For the sake of simplicity I am assuming that if the userstore returns not found then the version
+			// is no longer valid. A real world implementation should probably be able to distinguish between that
+			// and the record having been deleted
+			return usr, ErrInvalidVersion
+		}
+		return usr, fmt.Errorf("unexpected error updating user store: %w", err)
 	}
 	return copyStoreUserToUser(&rec), nil
 }

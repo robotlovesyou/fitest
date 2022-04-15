@@ -209,6 +209,7 @@ func TestCorrectErrorIsReturnedForInvalidNewUser(t *testing.T) {
 			name: "Short Password",
 			newUser: fakeNewUser(func(nu *user.NewUser) {
 				nu.Password = "short"
+				nu.ConfirmPassword = "short"
 			}),
 		},
 	}
