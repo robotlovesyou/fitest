@@ -1,6 +1,7 @@
 package userstore
 
 import (
+	"errors"
 	"time"
 )
 
@@ -9,6 +10,12 @@ type State string
 const (
 	Pending    State = "Pending"
 	Processing State = "Processing"
+)
+
+var (
+	// ErrAlreadyExists is returned when the new record cannot be inserted due to a unique constraint conflict
+	// In a real world implementation, this would need to carry enough information for the consumer to be able to address the issue
+	ErrAlreadyExists = errors.New("a user with that email or nickname already exists")
 )
 
 type User struct {

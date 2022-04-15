@@ -3,8 +3,10 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 )
@@ -33,13 +35,13 @@ var (
 )
 
 type NewUser struct {
-	FirstName       string
-	LastName        string
-	Nickname        string
-	Password        string
-	ConfirmPassword string
-	Email           string
-	Country         string
+	FirstName       string `validate:"required"`
+	LastName        string `validate:"required"`
+	Nickname        string `validate:"required"`
+	Password        string `validate:"required"`
+	ConfirmPassword string `validate:"required"`
+	Email           string `validate:"required"`
+	Country         string `validate:"required"`
 }
 
 type User struct {
@@ -86,10 +88,16 @@ type Service struct {
 	store       UserStore
 	hasher      PasswordHasher
 	idGenerator IDGenerator
+	validate    *validator.Validate
 }
 
-func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator) *Service {
-	return &Service{store: store, hasher: hasher, idGenerator: idGenerator}
+func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator, validate *validator.Validate) *Service {
+	return &Service{
+		store:       store,
+		hasher:      hasher,
+		idGenerator: idGenerator,
+		validate:    validate,
+	}
 }
 
 type UserStore interface {
@@ -105,7 +113,6 @@ type PasswordHasher interface {
 type IDGenerator func() (uuid.UUID, error)
 
 func (service *Service) Create(ctx context.Context, newUser *NewUser) (user User, err error) {
-	// TODO provide a dependency to do this so that we can test failure
 	id, err := service.idGenerator()
 	if err != nil {
 		return user, err
@@ -114,6 +121,15 @@ func (service *Service) Create(ctx context.Context, newUser *NewUser) (user User
 	passwordHash, err := service.hasher.Hash(newUser.Password)
 	if err != nil {
 		return user, err
+	}
+
+	if err = service.validate.Struct(newUser); err != nil {
+		// In a real world implementation, the validation would need to return information rich enough to allow the consumer to
+		// address the issue, because "computer says 'No'" is not very helpful, but it will do for here, hopefully!
+
+		// Additionally, since this includes information which might be displayed to other users, it would likely want
+		// to check for potentially offensive content in some fields
+		return user, ErrInvalid
 	}
 
 	usr, err := service.store.Create(ctx, &userstore.User{
@@ -130,7 +146,10 @@ func (service *Service) Create(ctx context.Context, newUser *NewUser) (user User
 		Version:      DefaultVersion,
 	})
 	if err != nil {
-		panic("error handling is not implemented yet")
+		if errors.Is(err, userstore.ErrAlreadyExists) {
+			return user, ErrAlreadyExists
+		}
+		return user, fmt.Errorf("unexpected error storing user: %w", err)
 	}
 
 	return User{
