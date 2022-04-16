@@ -1,5 +1,7 @@
 PACKAGES = github.com/robotlovesyou/fitest/pkg/... github.com/robotlovesyou/fitest/cmd/...
 TEST = go test $(PACKAGES) -count=1
+						 
+export MONGO_TEST_URL = mongodb://root:password@localhost:27017/
 
 test:
 	$(TEST)
