@@ -127,3 +127,5 @@ func TestCannotCreateClashingRecords(t *testing.T) {
 		})
 	}
 }
+
+// TODO: Test for record with invalid ID fields (too long, too short, not a byte[])
