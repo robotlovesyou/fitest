@@ -26,14 +26,14 @@ const bobbyTables = "Robert'); DROP TABLE Students;--"
 ////////////////////////////////////////////////////////////////////////////////
 
 type stubCreate func(context.Context, *userstore.User) (userstore.User, error)
-type stubUpdate func(context.Context, *userstore.User) (userstore.User, error)
+type stubUpdateOne func(context.Context, *userstore.User) (userstore.User, error)
 type stubReadOne func(context.Context, uuid.UUID) (userstore.User, error)
 type stubDeleteOne func(context.Context, uuid.UUID) error
 type stubFindMany func(context.Context, *userstore.Query) (userstore.Page, error)
 
 type stubUserStore struct {
 	stubCreate    stubCreate
-	stubUpdate    stubUpdate
+	stubUpdateOne stubUpdateOne
 	stubReadOne   stubReadOne
 	stubDeleteOne stubDeleteOne
 	stubFindMany  stubFindMany
@@ -44,7 +44,7 @@ func newStubUserStore() *stubUserStore {
 		stubCreate: func(context.Context, *userstore.User) (userstore.User, error) {
 			panic("stub create")
 		},
-		stubUpdate: func(context.Context, *userstore.User) (userstore.User, error) {
+		stubUpdateOne: func(context.Context, *userstore.User) (userstore.User, error) {
 			panic("stub update")
 		},
 		stubReadOne: func(context.Context, uuid.UUID) (userstore.User, error) {
@@ -63,8 +63,8 @@ func (store *stubUserStore) Create(ctx context.Context, rec *userstore.User) (us
 	return store.stubCreate(ctx, rec)
 }
 
-func (store *stubUserStore) Update(ctx context.Context, rec *userstore.User) (userstore.User, error) {
-	return store.stubUpdate(ctx, rec)
+func (store *stubUserStore) UpdateOne(ctx context.Context, rec *userstore.User) (userstore.User, error) {
+	return store.stubUpdateOne(ctx, rec)
 }
 
 func (store *stubUserStore) ReadOne(ctx context.Context, id uuid.UUID) (userstore.User, error) {

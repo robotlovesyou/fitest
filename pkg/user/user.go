@@ -106,7 +106,7 @@ func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator, valida
 
 type UserStore interface {
 	Create(context.Context, *userstore.User) (userstore.User, error)
-	Update(context.Context, *userstore.User) (userstore.User, error)
+	UpdateOne(context.Context, *userstore.User) (userstore.User, error)
 	ReadOne(context.Context, uuid.UUID) (userstore.User, error)
 	DeleteOne(context.Context, uuid.UUID) error
 	FindMany(context.Context, *userstore.Query) (userstore.Page, error)
@@ -216,7 +216,7 @@ func (service *Service) Update(ctx context.Context, update *Update) (usr User, e
 	rec.Country = update.Country
 	rec.UpdatedAt = time.Now().UTC()
 
-	rec, err = service.store.Update(ctx, &rec)
+	rec, err = service.store.UpdateOne(ctx, &rec)
 	if err != nil {
 		switch {
 		case errors.Is(err, userstore.ErrNotFound):

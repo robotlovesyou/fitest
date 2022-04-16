@@ -64,7 +64,7 @@ func TestUpdateUserCallsStoreWithCorrectParameters(t *testing.T) {
 		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			storeUser = *usr
 			require.False(t, emptyID(usr.ID))
 			require.Equal(t, update.FirstName, usr.FirstName)
@@ -164,7 +164,7 @@ func TestForErrorWhenUpdateContainsInvalidValues(t *testing.T) {
 				store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 					panic("should not be calling read one when update is invalid")
 				}
-				store.stubUpdate = func(context.Context, *userstore.User) (userstore.User, error) {
+				store.stubUpdateOne = func(context.Context, *userstore.User) (userstore.User, error) {
 					panic("should not be calling update when update is invalid")
 				}
 				_, err := service.Update(context.Background(), &c.update)
@@ -188,7 +188,7 @@ func TestPasswordIsNotReHashedWhenItIsNotSetInTheUpdate(t *testing.T) {
 		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			return *usr, nil
 		}
 		usr, err := service.Update(context.Background(), &update)
@@ -205,7 +205,7 @@ func TestForErrorUpdatingUserWhenRecordNotFound(t *testing.T) {
 		store.stubReadOne = func(context.Context, uuid.UUID) (rec userstore.User, err error) {
 			return rec, userstore.ErrNotFound
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			panic("should not be calling update when the record is not found")
 		}
 		_, err := service.Update(context.Background(), &update)
@@ -224,7 +224,7 @@ func TestForErrorUpdatingUserWhenPasswordCannotBeHashed(t *testing.T) {
 		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			return *usr, nil
 		}
 		_, err := service.Update(context.Background(), &update)
@@ -244,7 +244,7 @@ func TestForErrorUpdatingUserWhenVersionIsStale(t *testing.T) {
 		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			panic("should not be calling store update when version is stale")
 		}
 		_, err := service.Update(context.Background(), &update)
@@ -287,7 +287,7 @@ func TestForErrorUpdatingUserWhenStoreUpdateFails(t *testing.T) {
 				store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 					return rec, nil
 				}
-				store.stubUpdate = func(context.Context, *userstore.User) (rec userstore.User, err error) {
+				store.stubUpdateOne = func(context.Context, *userstore.User) (rec userstore.User, err error) {
 					return rec, thisCase.result
 				}
 				_, err := service.Update(context.Background(), &update)

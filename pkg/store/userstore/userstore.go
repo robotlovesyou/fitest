@@ -13,11 +13,15 @@ import (
 )
 
 type State string
+type Action string
 
 const (
 	Pending    State = "Pending"
 	Processing State = "Processing"
-	Done       State = "Done"
+
+	Created Action = "Created"
+	Updated Action = "Updated"
+	Deleted Action = "Deleted"
 
 	CollectionName = "users"
 )
@@ -47,14 +51,15 @@ type User struct {
 
 type Event struct {
 	State     State     `bson:"state"`
+	Action    Action    `bson:"action"`
 	CreatedAt time.Time `bson:"created_at"`
 	UpdatedAt time.Time `bson:"updated_at"`
-	Data      User      `bson:"data"`
+	Data      *User     `bson:"data"`
 }
 
 type Record struct {
 	ID     uuid.UUID `bson:"_id"`
-	Data   User      `bson:"data"`
+	Data   *User     `bson:"data"`
 	Events []Event   `bson:"events"`
 }
 
@@ -105,13 +110,14 @@ func (store *Store) EnsureIndexes(ctx context.Context) error {
 func (store *Store) Create(ctx context.Context, user *User) (User, error) {
 	rec := Record{
 		ID:   user.ID,
-		Data: *user,
+		Data: user,
 		Events: []Event{
 			{
 				State:     Pending,
+				Action:    Created,
 				CreatedAt: time.Now().UTC(),
 				UpdatedAt: time.Now().UTC(),
-				Data:      *user,
+				Data:      user,
 			},
 		},
 	}
@@ -142,10 +148,10 @@ func (store *Store) ReadOne(ctx context.Context, id uuid.UUID) (user User, err e
 	if err = res.Decode(&rec); err != nil {
 		return user, fmt.Errorf("cannot decode record: %w", err)
 	}
-	return rec.Data, nil
+	return *rec.Data, nil
 }
 
-func (store *Store) Update(ctx context.Context, update *User) (user User, err error) {
+func (store *Store) UpdateOne(ctx context.Context, update *User) (user User, err error) {
 
 	rec, err := store.ReadOne(ctx, update.ID)
 	if err != nil {
@@ -177,9 +183,10 @@ func (store *Store) Update(ctx context.Context, update *User) (user User, err er
 		"$push": bson.M{
 			"events": Event{
 				State:     Pending,
+				Action:    Updated,
 				CreatedAt: time.Now().UTC(),
 				UpdatedAt: time.Now().UTC(),
-				Data:      rec,
+				Data:      &rec,
 			},
 		},
 	})
@@ -192,4 +199,31 @@ func (store *Store) Update(ctx context.Context, update *User) (user User, err er
 		return user, ErrInvalidVersion
 	}
 	return rec, err
+}
+
+func (store *Store) DeleteOne(ctx context.Context, id uuid.UUID) error {
+	res, err := store.collection.UpdateOne(ctx, bson.M{
+		"_id":     id,
+		"data.id": id,
+	}, bson.M{
+		"$set": bson.M{
+			"data": nil,
+		},
+		"$push": bson.M{
+			"events": Event{
+				State:     Pending,
+				Action:    Deleted,
+				CreatedAt: time.Now().UTC(),
+				UpdatedAt: time.Now().UTC(),
+				Data:      nil,
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("cannot delete user: %w", err)
+	}
+	if res.ModifiedCount != 1 {
+		return ErrNotFound
+	}
+	return nil
 }

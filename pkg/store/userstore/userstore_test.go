@@ -162,7 +162,7 @@ func TestStoreCanUpdateAUserRecord(t *testing.T) {
 		_, err := store.Create(ctx, &rec)
 		require.NoError(t, err)
 		rec.FirstName = "New"
-		updated, err := store.Update(ctx, &rec)
+		updated, err := store.UpdateOne(ctx, &rec)
 		require.NoError(t, err)
 		compareUserRecords(t, rec, updated)
 		require.Equal(t, rec.Version+1, updated.Version)
@@ -172,7 +172,7 @@ func TestStoreCanUpdateAUserRecord(t *testing.T) {
 func TestUpdateFailsIfRecordDoesntExist(t *testing.T) {
 	rec := fakeUserRecord()
 	withStore(func(ctx context.Context, store *userstore.Store) {
-		_, err := store.Update(ctx, &rec)
+		_, err := store.UpdateOne(ctx, &rec)
 		require.ErrorIs(t, err, userstore.ErrNotFound)
 	})
 }
@@ -185,7 +185,36 @@ func TestUpdateFailsIfUpdateVersionIsStale(t *testing.T) {
 		require.NoError(t, err)
 		rec.FirstName = "New"
 		rec.Version = 1
-		_, err = store.Update(ctx, &rec)
+		_, err = store.UpdateOne(ctx, &rec)
 		require.ErrorIs(t, err, userstore.ErrInvalidVersion)
+	})
+}
+
+func TestStoreCanDeleteAUserRecord(t *testing.T) {
+	rec := fakeUserRecord()
+	withStore(func(ctx context.Context, store *userstore.Store) {
+		_, err := store.Create(ctx, &rec)
+		require.NoError(t, err)
+		err = store.DeleteOne(ctx, rec.ID)
+		require.NoError(t, err)
+	})
+}
+
+func TestStoreReturnsCorrectErrorDeletingRecordWhichDoesNotExist(t *testing.T) {
+	withStore(func(ctx context.Context, store *userstore.Store) {
+		err := store.DeleteOne(ctx, uuid.Must(uuid.NewRandom()))
+		require.ErrorIs(t, err, userstore.ErrNotFound)
+	})
+}
+
+func TestStoreCannotDeleteRecordTwice(t *testing.T) {
+	rec := fakeUserRecord()
+	withStore(func(ctx context.Context, store *userstore.Store) {
+		_, err := store.Create(ctx, &rec)
+		require.NoError(t, err)
+		err = store.DeleteOne(ctx, rec.ID)
+		require.NoError(t, err)
+		err = store.DeleteOne(ctx, rec.ID)
+		require.ErrorIs(t, err, userstore.ErrNotFound)
 	})
 }
