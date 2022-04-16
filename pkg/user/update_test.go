@@ -76,7 +76,7 @@ func TestUpdateUserCallsStoreWithCorrectParameters(t *testing.T) {
 			require.False(t, usr.CreatedAt.IsZero())
 			require.False(t, usr.UpdatedAt.IsZero())
 			require.True(t, usr.UpdatedAt.After(rec.UpdatedAt))
-			require.True(t, usr.Version > rec.Version)
+			require.Equal(t, usr.Version, rec.Version)
 			return *usr, nil
 		}
 		usr, err := service.Update(context.Background(), &update)
@@ -90,7 +90,6 @@ func TestUpdateUserCallsStoreWithCorrectParameters(t *testing.T) {
 		require.Equal(t, update.Country, usr.Country)
 		require.Equal(t, rec.CreatedAt, usr.CreatedAt)
 		require.True(t, rec.UpdatedAt.Before(usr.UpdatedAt))
-		require.Equal(t, update.Version+1, usr.Version)
 	})
 }
 
@@ -262,8 +261,13 @@ func TestForErrorUpdatingUserWhenStoreUpdateFails(t *testing.T) {
 	}{
 		{
 			name:     "Bad ID",
-			expected: user.ErrInvalidVersion,
+			expected: user.ErrNotFound,
 			result:   userstore.ErrNotFound,
+		},
+		{
+			name:     "Bad Version",
+			expected: user.ErrInvalidVersion,
+			result:   userstore.ErrInvalidVersion,
 		},
 		{
 			name:     "Unexpected Error From Store Is Included In Chain",

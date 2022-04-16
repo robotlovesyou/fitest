@@ -215,17 +215,17 @@ func (service *Service) Update(ctx context.Context, update *Update) (usr User, e
 	rec.LastName = update.LastName
 	rec.Country = update.Country
 	rec.UpdatedAt = time.Now().UTC()
-	rec.Version += 1
 
 	rec, err = service.store.Update(ctx, &rec)
 	if err != nil {
-		if errors.Is(err, userstore.ErrNotFound) {
-			// For the sake of simplicity I am assuming that if the userstore returns not found then the version
-			// is no longer valid. A real world implementation should probably be able to distinguish between that
-			// and the record having been deleted
+		switch {
+		case errors.Is(err, userstore.ErrNotFound):
+			return usr, ErrNotFound
+		case errors.Is(err, userstore.ErrInvalidVersion):
 			return usr, ErrInvalidVersion
+		default:
+			return usr, fmt.Errorf("unexpected error updating user store: %w", err)
 		}
-		return usr, fmt.Errorf("unexpected error updating user store: %w", err)
 	}
 	return copyStoreUserToUser(&rec), nil
 }

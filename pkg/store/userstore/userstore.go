@@ -3,6 +3,7 @@ package userstore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,6 +28,8 @@ var (
 	ErrAlreadyExists = errors.New("a user with that email or nickname already exists")
 	//ErrNotFound is returned when the requested record does not exist
 	ErrNotFound = errors.New("the requested user cannot be found in the store")
+	// ErrInvalidVersion is returned when a record cannot be updated because the version is out of date
+	ErrInvalidVersion = errors.New("the user cannot be updated because the version is invalid")
 )
 
 type User struct {
@@ -118,6 +121,74 @@ func (store *Store) Create(ctx context.Context, user *User) (User, error) {
 			// allow a consumer to differentiate between causes
 			return *user, ErrAlreadyExists
 		}
+		return *user, fmt.Errorf("cannot store user record: %w", err)
 	}
 	return *user, nil
+}
+
+func (store *Store) ReadOne(ctx context.Context, id uuid.UUID) (user User, err error) {
+	res := store.collection.FindOne(ctx, bson.M{
+		"_id":     id,
+		"data.id": id, // deleted records will not have an id value but can still have events pending
+	})
+	if err = res.Err(); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return user, ErrNotFound
+		}
+		return user, fmt.Errorf("cannot read user record: %w", err)
+	}
+	var rec Record
+	if err = res.Decode(&rec); err != nil {
+		return user, fmt.Errorf("cannot decode record: %w", err)
+	}
+	return rec.Data, nil
+}
+
+func (store *Store) Update(ctx context.Context, update *User) (user User, err error) {
+
+	rec, err := store.ReadOne(ctx, update.ID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return user, err
+		}
+		return user, fmt.Errorf("cannot read record for updating: %w", err)
+	}
+	if rec.Version != update.Version {
+		return user, ErrInvalidVersion
+	}
+
+	rec.FirstName = update.FirstName
+	rec.LastName = update.LastName
+	rec.PasswordHash = update.PasswordHash
+	rec.Country = update.Country
+	rec.CreatedAt = update.CreatedAt
+	rec.UpdatedAt = update.UpdatedAt
+	rec.Version += 1
+
+	res, err := store.collection.UpdateOne(ctx, bson.M{
+		"_id":          rec.ID,
+		"data.id":      rec.ID,
+		"data.version": update.Version,
+	}, bson.M{
+		"$set": bson.M{
+			"data": rec,
+		},
+		"$push": bson.M{
+			"events": Event{
+				State:     Pending,
+				CreatedAt: time.Now().UTC(),
+				UpdatedAt: time.Now().UTC(),
+				Data:      rec,
+			},
+		},
+	})
+	if err != nil {
+		return user, fmt.Errorf("cannot update user record: %w", err)
+	}
+	if res.ModifiedCount != 1 {
+		// It is also possible to get here if the user was updated between the read and update calls.
+		// A real world implementation may want to differentiate between those states
+		return user, ErrInvalidVersion
+	}
+	return rec, err
 }

@@ -79,10 +79,6 @@ func fakeUserRecord(muts ...func(r *userstore.User)) userstore.User {
 }
 
 func TestStoreCanCreateAUserRecord(t *testing.T) {
-	// create a fake user
-	// create the store
-	// call the create function
-	// check for no error
 	rec := fakeUserRecord()
 	withStore(func(ctx context.Context, store *userstore.Store) {
 		_, err := store.Create(ctx, &rec)
@@ -128,4 +124,72 @@ func TestCannotCreateClashingRecords(t *testing.T) {
 	}
 }
 
-// TODO: Test for record with invalid ID fields (too long, too short, not a byte[])
+func TestReadOne(t *testing.T) {
+	rec := fakeUserRecord()
+	withStore(func(ctx context.Context, store *userstore.Store) {
+		_, err := store.Create(ctx, &rec)
+		require.NoError(t, err)
+		read, err := store.ReadOne(ctx, rec.ID)
+		require.NoError(t, err)
+		require.Equal(t, rec.ID, read.ID)
+		require.Equal(t, rec.FirstName, read.FirstName)
+		require.Equal(t, rec.LastName, read.LastName)
+		require.Equal(t, rec.Nickname, read.Nickname)
+		require.Equal(t, rec.PasswordHash, read.PasswordHash)
+		require.Equal(t, rec.Email, read.Email)
+		require.Equal(t, rec.Country, read.Country)
+		require.Equal(t, rec.Version, read.Version)
+		require.True(t, read.CreatedAt.Sub(rec.CreatedAt) <= time.Millisecond) // mongodb only has 1ms time resolution.
+		require.True(t, read.UpdatedAt.Sub(rec.UpdatedAt) <= time.Millisecond) // mongodb only has 1ms time resolution.
+
+	})
+}
+
+func TestReadOneReturnsNotFoundWhenRecordIsMissing(t *testing.T) {
+	withStore(func(ctx context.Context, store *userstore.Store) {
+		_, err := store.ReadOne(ctx, uuid.Must(uuid.NewRandom()))
+		require.ErrorIs(t, err, userstore.ErrNotFound)
+	})
+}
+
+func TestStoreCanUpdateAUserRecord(t *testing.T) {
+	rec := fakeUserRecord()
+	withStore(func(ctx context.Context, store *userstore.Store) {
+		_, err := store.Create(ctx, &rec)
+		require.NoError(t, err)
+		rec.FirstName = "New"
+		updated, err := store.Update(ctx, &rec)
+		require.NoError(t, err)
+		require.Equal(t, rec.ID, updated.ID)
+		require.Equal(t, rec.FirstName, updated.FirstName)
+		require.Equal(t, rec.LastName, updated.LastName)
+		require.Equal(t, rec.Nickname, updated.Nickname)
+		require.Equal(t, rec.PasswordHash, updated.PasswordHash)
+		require.Equal(t, rec.Email, updated.Email)
+		require.Equal(t, rec.Country, updated.Country)
+		require.Equal(t, rec.Version+1, updated.Version)
+		require.True(t, updated.CreatedAt.Sub(rec.CreatedAt) <= time.Millisecond) // mongodb only has 1ms time resolution.
+		require.True(t, updated.UpdatedAt.Sub(rec.UpdatedAt) <= time.Millisecond) // mongodb only has 1ms time resolution.
+	})
+}
+
+func TestUpdateFailsIfRecordDoesntExist(t *testing.T) {
+	rec := fakeUserRecord()
+	withStore(func(ctx context.Context, store *userstore.Store) {
+		_, err := store.Update(ctx, &rec)
+		require.ErrorIs(t, err, userstore.ErrNotFound)
+	})
+}
+
+func TestUpdateFailsIfUpdateVersionIsStale(t *testing.T) {
+	rec := fakeUserRecord()
+	rec.Version = 2
+	withStore(func(ctx context.Context, store *userstore.Store) {
+		_, err := store.Create(ctx, &rec)
+		require.NoError(t, err)
+		rec.FirstName = "New"
+		rec.Version = 1
+		_, err = store.Update(ctx, &rec)
+		require.ErrorIs(t, err, userstore.ErrInvalidVersion)
+	})
+}
