@@ -84,6 +84,7 @@ func New(db *mongo.Database) *Store {
 }
 
 func (store *Store) EnsureIndexes(ctx context.Context) error {
+	// creating indexes in the foreground like this could be problematic for a production service
 	_, err := store.collection.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
 			Keys: bson.M{
