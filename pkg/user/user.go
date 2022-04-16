@@ -107,8 +107,8 @@ func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator, valida
 type UserStore interface {
 	Create(context.Context, *userstore.User) (userstore.User, error)
 	Update(context.Context, *userstore.User) (userstore.User, error)
-	ReadOne(context.Context, [16]byte) (userstore.User, error)
-	DeleteOne(context.Context, [16]byte) error
+	ReadOne(context.Context, uuid.UUID) (userstore.User, error)
+	DeleteOne(context.Context, uuid.UUID) error
 	FindMany(context.Context, *userstore.Query) (userstore.Page, error)
 }
 

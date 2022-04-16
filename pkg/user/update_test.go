@@ -61,7 +61,7 @@ func TestUpdateUserCallsStoreWithCorrectParameters(t *testing.T) {
 
 	withService(store)(func(service *user.Service) {
 		var storeUser userstore.User
-		store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
 		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
@@ -162,7 +162,7 @@ func TestForErrorWhenUpdateContainsInvalidValues(t *testing.T) {
 		t.Run(thisCase.name, func(t *testing.T) {
 			store := newStubUserStore()
 			withService(store)(func(service *user.Service) {
-				store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+				store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 					panic("should not be calling read one when update is invalid")
 				}
 				store.stubUpdate = func(context.Context, *userstore.User) (userstore.User, error) {
@@ -186,7 +186,7 @@ func TestPasswordIsNotReHashedWhenItIsNotSetInTheUpdate(t *testing.T) {
 	})
 
 	withService(store)(func(service *user.Service) {
-		store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
 		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
@@ -203,7 +203,7 @@ func TestForErrorUpdatingUserWhenRecordNotFound(t *testing.T) {
 	update := fakeUserUpdate()
 
 	withService(store)(func(service *user.Service) {
-		store.stubReadOne = func(context.Context, [16]byte) (rec userstore.User, err error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (rec userstore.User, err error) {
 			return rec, userstore.ErrNotFound
 		}
 		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
@@ -222,7 +222,7 @@ func TestForErrorUpdatingUserWhenPasswordCannotBeHashed(t *testing.T) {
 	})
 
 	withService(store, useHasher(badHasher{}))(func(service *user.Service) {
-		store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
 		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
@@ -242,7 +242,7 @@ func TestForErrorUpdatingUserWhenVersionIsStale(t *testing.T) {
 	})
 
 	withService(store)(func(service *user.Service) {
-		store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
 		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
@@ -280,7 +280,7 @@ func TestForErrorUpdatingUserWhenStoreUpdateFails(t *testing.T) {
 				r.ID = uuid.MustParse(update.ID)
 			})
 			withService(store)(func(service *user.Service) {
-				store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+				store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 					return rec, nil
 				}
 				store.stubUpdate = func(context.Context, *userstore.User) (rec userstore.User, err error) {

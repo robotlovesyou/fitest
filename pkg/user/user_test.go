@@ -27,8 +27,8 @@ const bobbyTables = "Robert'); DROP TABLE Students;--"
 
 type stubCreate func(context.Context, *userstore.User) (userstore.User, error)
 type stubUpdate func(context.Context, *userstore.User) (userstore.User, error)
-type stubReadOne func(context.Context, [16]byte) (userstore.User, error)
-type stubDeleteOne func(context.Context, [16]byte) error
+type stubReadOne func(context.Context, uuid.UUID) (userstore.User, error)
+type stubDeleteOne func(context.Context, uuid.UUID) error
 type stubFindMany func(context.Context, *userstore.Query) (userstore.Page, error)
 
 type stubUserStore struct {
@@ -47,10 +47,10 @@ func newStubUserStore() *stubUserStore {
 		stubUpdate: func(context.Context, *userstore.User) (userstore.User, error) {
 			panic("stub update")
 		},
-		stubReadOne: func(context.Context, [16]byte) (userstore.User, error) {
+		stubReadOne: func(context.Context, uuid.UUID) (userstore.User, error) {
 			panic("stub read one")
 		},
-		stubDeleteOne: func(context.Context, [16]byte) error {
+		stubDeleteOne: func(context.Context, uuid.UUID) error {
 			panic("stub delete one")
 		},
 		stubFindMany: func(context.Context, *userstore.Query) (userstore.Page, error) {
@@ -67,11 +67,11 @@ func (store *stubUserStore) Update(ctx context.Context, rec *userstore.User) (us
 	return store.stubUpdate(ctx, rec)
 }
 
-func (store *stubUserStore) ReadOne(ctx context.Context, id [16]byte) (userstore.User, error) {
+func (store *stubUserStore) ReadOne(ctx context.Context, id uuid.UUID) (userstore.User, error) {
 	return store.stubReadOne(ctx, id)
 }
 
-func (store *stubUserStore) DeleteOne(ctx context.Context, id [16]byte) error {
+func (store *stubUserStore) DeleteOne(ctx context.Context, id uuid.UUID) error {
 	return store.stubDeleteOne(ctx, id)
 }
 

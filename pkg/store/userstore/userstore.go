@@ -3,6 +3,8 @@ package userstore
 import (
 	"errors"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type State string
@@ -21,7 +23,7 @@ var (
 )
 
 type User struct {
-	ID           [16]byte  `bson:"id"`
+	ID           uuid.UUID `bson:"id"`
 	FirstName    string    `bson:"first_name"`
 	LastName     string    `bson:"last_name"`
 	Nickname     string    `bson:"nickname"`
@@ -41,9 +43,9 @@ type Event struct {
 }
 
 type Record struct {
-	ID     [16]byte `bson:"_id"`
-	Data   User     `bson:"data"`
-	Events []Event  `bson:"events"`
+	ID     uuid.UUID `bson:"_id"`
+	Data   User      `bson:"data"`
+	Events []Event   `bson:"events"`
 }
 
 type Query struct {
