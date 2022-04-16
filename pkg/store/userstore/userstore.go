@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -24,6 +25,10 @@ const (
 	Deleted Action = "Deleted"
 
 	CollectionName = "users"
+
+	// findTimeout is used to ensure that the goroutines created by find will complete.
+	// It should probably be configurable
+	findTimeout = 10 * time.Second
 )
 
 var (
@@ -92,16 +97,26 @@ func (store *Store) EnsureIndexes(ctx context.Context) error {
 	// creating indexes in the foreground like this could be problematic for a production service
 	_, err := store.collection.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
-			Keys: bson.M{
-				"data.email": 1,
+			Keys: bson.D{
+				bson.E{Key: "data.email", Value: 1},
 			},
-			Options: options.Index().SetUnique(true),
+			Options: options.Index().
+				SetUnique(true).
+				SetPartialFilterExpression(bson.M{"data": bson.M{"$type": bsontype.EmbeddedDocument}}),
 		},
 		{
-			Keys: bson.M{
-				"data.nickname": 1,
+			Keys: bson.D{
+				bson.E{Key: "data.nickname", Value: 1},
 			},
-			Options: options.Index().SetUnique(true),
+			Options: options.Index().
+				SetUnique(true).
+				SetPartialFilterExpression(bson.M{"data": bson.M{"$type": bsontype.EmbeddedDocument}}),
+		},
+		{
+			Keys: bson.D{
+				bson.E{Key: "data.created_at", Value: 1},
+				bson.E{Key: "data.country", Value: 1},
+			},
 		},
 	})
 	return err
@@ -226,4 +241,124 @@ func (store *Store) DeleteOne(ctx context.Context, id uuid.UUID) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func filterFromQuery(query *Query) bson.M {
+	f := bson.M{
+		"data.created_at": bson.M{"$gte": query.CreatedAfter},
+	}
+	if query.Country != "" {
+		f["data.country"] = bson.M{"$eq": query.Country}
+	}
+	return f
+}
+
+func skipFromQuery(query *Query) int64 {
+	skip := int64(query.Length) * (query.Page - 1)
+	if skip < int64(0) {
+		skip = int64(0)
+	}
+	return skip
+}
+
+type totalResult struct {
+	count int64
+	err   error
+}
+
+func (store *Store) findTotal(ctx context.Context, query *Query) <-chan totalResult {
+	out := make(chan totalResult)
+	go func(q Query) {
+		var err error
+		var count int64
+		count, err = store.collection.CountDocuments(ctx, filterFromQuery(&q))
+		if err != nil {
+			err = fmt.Errorf("cannot count matching users: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+		case out <- totalResult{count: count, err: err}:
+		}
+	}(*query)
+	return out
+}
+
+type itemsResult struct {
+	items []User
+	err   error
+}
+
+func (store *Store) findItems(ctx context.Context, query *Query) <-chan itemsResult {
+	out := make(chan itemsResult)
+	go func(q Query) {
+		items := make([]User, 0, q.Length)
+		var err error
+		var rec Record
+
+		cursor, err := store.collection.Find(
+			ctx,
+			filterFromQuery(&q),
+			options.
+				Find().
+				SetSort(bson.M{"data.created_at": 1}).
+				SetSkip(skipFromQuery(&q)).
+				SetLimit(int64(query.Length)),
+		)
+		if err != nil {
+			err = fmt.Errorf("cannot find matching users: %w", err)
+		} else {
+			for {
+				if err = cursor.Decode(&rec); err != nil {
+					break
+				}
+				items = append(items, *rec.Data)
+				if !cursor.Next(ctx) {
+					break
+				}
+			}
+			err = cursor.Err()
+		}
+
+		select {
+		case <-ctx.Done():
+		case out <- itemsResult{items: items, err: err}:
+		}
+	}(*query)
+	return out
+}
+
+func (store *Store) FindMany(ctx context.Context, query *Query) (page Page, err error) {
+	ctx, cancel := context.WithTimeout(ctx, findTimeout)
+	defer cancel()
+
+	totalChan := store.findTotal(ctx, query)
+	itemsChan := store.findItems(ctx, query)
+	var total totalResult
+	var items itemsResult
+
+	select {
+	case <-ctx.Done():
+		return page, fmt.Errorf("cannot find users total: %w", ctx.Err())
+	case total = <-totalChan:
+	}
+
+	select {
+	case <-ctx.Done():
+		return page, fmt.Errorf("cannot find users: %w", ctx.Err())
+	case items = <-itemsChan:
+	}
+
+	switch {
+	case total.err != nil:
+		err = total.err
+	case items.err != nil:
+		err = items.err
+	}
+
+	return Page{
+		Page:  query.Page,
+		Total: total.count,
+		Items: items.items,
+	}, err
+
 }
