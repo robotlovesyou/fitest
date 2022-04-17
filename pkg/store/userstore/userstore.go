@@ -370,10 +370,16 @@ func (store *Store) FindMany(ctx context.Context, query *Query) (page Page, err 
 
 }
 
-func (store *Store) readAndUpdateNextEvent(ctx context.Context) (e Event, err error) {
+func (store *Store) readAndUpdateNextEvent(ctx context.Context, retryTimeout time.Duration) (e Event, err error) {
 	var rec Record
 	res := store.collection.FindOneAndUpdate(ctx, bson.M{
-		"events.0.state": Pending,
+		"$or": []bson.M{
+			{"events.0.state": Pending},
+			{
+				"events.0.state":      Processing,
+				"events.0.updated_at": bson.M{"$lt": time.Now().UTC().Add(-1 * retryTimeout)},
+			},
+		},
 	}, bson.M{
 		"$set": bson.M{
 			"events.0.state":      Processing,
@@ -389,7 +395,7 @@ func (store *Store) readAndUpdateNextEvent(ctx context.Context) (e Event, err er
 	return rec.Events[0], nil
 }
 
-func (store *Store) Events(ctx context.Context, minInterval, maxInterval time.Duration) <-chan EventResult {
+func (store *Store) Events(ctx context.Context, minInterval, maxInterval, retryTimeout time.Duration) <-chan EventResult {
 	out := make(chan EventResult)
 	go func() {
 		source := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -400,7 +406,7 @@ func (store *Store) Events(ctx context.Context, minInterval, maxInterval time.Du
 			func() {
 				innerCtx, cancel := context.WithTimeout(ctx, findTimeout)
 				defer cancel()
-				event, err = store.readAndUpdateNextEvent(innerCtx)
+				event, err = store.readAndUpdateNextEvent(innerCtx, retryTimeout)
 			}()
 			if err != nil && errors.Is(err, mongo.ErrNoDocuments) {
 				// we can ignore this error, it just means there are no waiting events

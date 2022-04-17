@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func collectEvents(ctx context.Context, store *userstore.Store, n int) []userstore.Event {
+func collectEvents(ctx context.Context, store *userstore.Store, retryTimeout time.Duration, processEvent bool, n int) []userstore.Event {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	collected := make([]userstore.Event, 0, n)
-	events := store.Events(ctx, 10*time.Millisecond, 20*time.Millisecond)
+	events := store.Events(ctx, 10*time.Millisecond, 20*time.Millisecond, retryTimeout)
 	for {
 		if len(collected) >= n {
 			break
@@ -30,6 +30,9 @@ func collectEvents(ctx context.Context, store *userstore.Store, n int) []usersto
 				break
 			}
 			collected = append(collected, e.Event)
+			if !processEvent {
+				continue
+			}
 			if err := store.ProcessEvent(ctx, e.Event.ID, e.Event.Version); err != nil {
 				panic(err)
 			}
@@ -82,7 +85,7 @@ func TestActionsCauseEvents(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			withStore(func(ctx context.Context, store *userstore.Store) {
 				c.actions(ctx, store, t)
-				events := collectEvents(ctx, store, len(c.expected))
+				events := collectEvents(ctx, store, 10*time.Second, true, len(c.expected))
 				require.Equal(t, len(c.expected), len(events))
 				for i, a := range c.expected {
 					require.Equal(t, a, events[i].Action)
@@ -92,4 +95,14 @@ func TestActionsCauseEvents(t *testing.T) {
 	}
 }
 
-// TODO: include method and tests for marking events as done (by removing them)
+func TestTimedOutPendingEventsAreReSent(t *testing.T) {
+	withStore(func(ctx context.Context, store *userstore.Store) {
+		rec := fakeUserRecord()
+		_, err := store.Create(ctx, &rec)
+		require.NoError(t, err)
+
+		// using a very short retry window so that the same event is sent more than once
+		events := collectEvents(ctx, store, 100*time.Millisecond, false, 2)
+		require.Len(t, events, 2)
+	})
+}
