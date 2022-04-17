@@ -61,10 +61,10 @@ func TestUpdateUserCallsStoreWithCorrectParameters(t *testing.T) {
 
 	withService(store)(func(service *user.Service) {
 		var storeUser userstore.User
-		store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			storeUser = *usr
 			require.False(t, emptyID(usr.ID))
 			require.Equal(t, update.FirstName, usr.FirstName)
@@ -76,7 +76,7 @@ func TestUpdateUserCallsStoreWithCorrectParameters(t *testing.T) {
 			require.False(t, usr.CreatedAt.IsZero())
 			require.False(t, usr.UpdatedAt.IsZero())
 			require.True(t, usr.UpdatedAt.After(rec.UpdatedAt))
-			require.True(t, usr.Version > rec.Version)
+			require.Equal(t, usr.Version, rec.Version)
 			return *usr, nil
 		}
 		usr, err := service.Update(context.Background(), &update)
@@ -90,7 +90,6 @@ func TestUpdateUserCallsStoreWithCorrectParameters(t *testing.T) {
 		require.Equal(t, update.Country, usr.Country)
 		require.Equal(t, rec.CreatedAt, usr.CreatedAt)
 		require.True(t, rec.UpdatedAt.Before(usr.UpdatedAt))
-		require.Equal(t, update.Version+1, usr.Version)
 	})
 }
 
@@ -162,10 +161,10 @@ func TestForErrorWhenUpdateContainsInvalidValues(t *testing.T) {
 		t.Run(thisCase.name, func(t *testing.T) {
 			store := newStubUserStore()
 			withService(store)(func(service *user.Service) {
-				store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+				store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 					panic("should not be calling read one when update is invalid")
 				}
-				store.stubUpdate = func(context.Context, *userstore.User) (userstore.User, error) {
+				store.stubUpdateOne = func(context.Context, *userstore.User) (userstore.User, error) {
 					panic("should not be calling update when update is invalid")
 				}
 				_, err := service.Update(context.Background(), &c.update)
@@ -186,10 +185,10 @@ func TestPasswordIsNotReHashedWhenItIsNotSetInTheUpdate(t *testing.T) {
 	})
 
 	withService(store)(func(service *user.Service) {
-		store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			return *usr, nil
 		}
 		usr, err := service.Update(context.Background(), &update)
@@ -203,10 +202,10 @@ func TestForErrorUpdatingUserWhenRecordNotFound(t *testing.T) {
 	update := fakeUserUpdate()
 
 	withService(store)(func(service *user.Service) {
-		store.stubReadOne = func(context.Context, [16]byte) (rec userstore.User, err error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (rec userstore.User, err error) {
 			return rec, userstore.ErrNotFound
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			panic("should not be calling update when the record is not found")
 		}
 		_, err := service.Update(context.Background(), &update)
@@ -222,10 +221,10 @@ func TestForErrorUpdatingUserWhenPasswordCannotBeHashed(t *testing.T) {
 	})
 
 	withService(store, useHasher(badHasher{}))(func(service *user.Service) {
-		store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			return *usr, nil
 		}
 		_, err := service.Update(context.Background(), &update)
@@ -242,10 +241,10 @@ func TestForErrorUpdatingUserWhenVersionIsStale(t *testing.T) {
 	})
 
 	withService(store)(func(service *user.Service) {
-		store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+		store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 			return rec, nil
 		}
-		store.stubUpdate = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
+		store.stubUpdateOne = func(ctx context.Context, usr *userstore.User) (userstore.User, error) {
 			panic("should not be calling store update when version is stale")
 		}
 		_, err := service.Update(context.Background(), &update)
@@ -262,8 +261,13 @@ func TestForErrorUpdatingUserWhenStoreUpdateFails(t *testing.T) {
 	}{
 		{
 			name:     "Bad ID",
-			expected: user.ErrInvalidVersion,
+			expected: user.ErrNotFound,
 			result:   userstore.ErrNotFound,
+		},
+		{
+			name:     "Bad Version",
+			expected: user.ErrInvalidVersion,
+			result:   userstore.ErrInvalidVersion,
 		},
 		{
 			name:     "Unexpected Error From Store Is Included In Chain",
@@ -280,10 +284,10 @@ func TestForErrorUpdatingUserWhenStoreUpdateFails(t *testing.T) {
 				r.ID = uuid.MustParse(update.ID)
 			})
 			withService(store)(func(service *user.Service) {
-				store.stubReadOne = func(context.Context, [16]byte) (userstore.User, error) {
+				store.stubReadOne = func(context.Context, uuid.UUID) (userstore.User, error) {
 					return rec, nil
 				}
-				store.stubUpdate = func(context.Context, *userstore.User) (rec userstore.User, err error) {
+				store.stubUpdateOne = func(context.Context, *userstore.User) (rec userstore.User, err error) {
 					return rec, thisCase.result
 				}
 				_, err := service.Update(context.Background(), &update)

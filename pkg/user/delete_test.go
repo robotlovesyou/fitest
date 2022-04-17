@@ -19,7 +19,7 @@ func TestDeleteCallsStoreWithCorrectParameters(t *testing.T) {
 	userRef := fakeUserRef()
 	storeStub := newStubUserStore()
 	withService(storeStub)(func(service *user.Service) {
-		storeStub.stubDeleteOne = func(ctx context.Context, id [16]byte) error {
+		storeStub.stubDeleteOne = func(ctx context.Context, id uuid.UUID) error {
 			idUUID := uuid.UUID(id).String()
 			require.Equal(t, userRef.ID, idUUID)
 			return nil
@@ -33,7 +33,7 @@ func TestDeleteReturnsErrorWhenRefIsInvalid(t *testing.T) {
 	userRef := user.Ref{ID: "not a uuid"}
 	storeStub := newStubUserStore()
 	withService(storeStub)(func(service *user.Service) {
-		storeStub.stubDeleteOne = func(ctx context.Context, id [16]byte) error {
+		storeStub.stubDeleteOne = func(ctx context.Context, id uuid.UUID) error {
 			panic("store delete should not be called when ref is invalid")
 		}
 		err := service.DeleteUser(context.Background(), &userRef)
@@ -65,7 +65,7 @@ func TestDeleteReturnsCorrectErrorWhenStoreDeleteFails(t *testing.T) {
 			userRef := fakeUserRef()
 			storeStub := newStubUserStore()
 			withService(storeStub)(func(service *user.Service) {
-				storeStub.stubDeleteOne = func(ctx context.Context, id [16]byte) error {
+				storeStub.stubDeleteOne = func(ctx context.Context, id uuid.UUID) error {
 					return thisCase.result
 				}
 				err := service.DeleteUser(context.Background(), &userRef)
