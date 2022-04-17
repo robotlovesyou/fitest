@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/robotlovesyou/fitest/pkg/utctime"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -143,8 +144,8 @@ func eventFor(action Action, id uuid.UUID, version int64, user *User) Event {
 		State:     Pending,
 		Action:    action,
 		Version:   version,
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+		CreatedAt: utctime.Now(),
+		UpdatedAt: utctime.Now(),
 		Data:      user,
 	}
 }
@@ -383,7 +384,7 @@ func (store *Store) readAndUpdateNextEvent(ctx context.Context, retryTimeout tim
 	}, bson.M{
 		"$set": bson.M{
 			"events.0.state":      Processing,
-			"events.0.updated_at": time.Now().UTC(),
+			"events.0.updated_at": utctime.Now(),
 		},
 	}, options.FindOneAndUpdate().SetSort(bson.M{"events.0.updated_at": 1}).SetReturnDocument(options.Before))
 	if err = res.Err(); err != nil {

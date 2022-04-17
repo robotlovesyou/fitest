@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net"
 	"testing"
-	"time"
 
 	"github.com/bxcodec/faker/v3"
 	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/rpc"
 	"github.com/robotlovesyou/fitest/pkg/user"
+	"github.com/robotlovesyou/fitest/pkg/utctime"
 	"github.com/robotlovesyou/fitest/userspb"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -121,7 +121,7 @@ func fakeUserRef() userspb.Ref {
 // fakeUsersQuery creates a fake query for testing
 func fakeUsersQuery() userspb.Query {
 	return userspb.Query{
-		CreatedAfter: time.Now().Format(user.TimeFormat),
+		CreatedAfter: utctime.Now().Format(user.TimeFormat),
 		Country:      "DE",
 		Length:       10,
 		Page:         11,
@@ -138,8 +138,8 @@ func fakeUser() user.User {
 		PasswordHash: "HashOfASuperSecretPassword",
 		Email:        faker.Email(),
 		Country:      "DE",
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		CreatedAt:    utctime.Now(),
+		UpdatedAt:    utctime.Now(),
 	}
 }
 
@@ -153,8 +153,8 @@ func userFromNewUser(newUser user.NewUser) user.User {
 		PasswordHash: "HashOfASuperSecretPassword",
 		Email:        newUser.Email,
 		Country:      newUser.Country,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		CreatedAt:    utctime.Now(),
+		UpdatedAt:    utctime.Now(),
 	}
 }
 
@@ -168,8 +168,8 @@ func userFromUserUpdate(userUpdate user.Update) user.User {
 		Nickname:     faker.Username(),
 		PasswordHash: "HashOfASuperSecretPassword",
 		Country:      userUpdate.Country,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		CreatedAt:    utctime.Now(),
+		UpdatedAt:    utctime.Now(),
 	}
 }
 

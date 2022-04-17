@@ -8,12 +8,13 @@ import (
 
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/user"
+	"github.com/robotlovesyou/fitest/pkg/utctime"
 	"github.com/stretchr/testify/require"
 )
 
 func fakeQuery() user.Query {
 	return user.Query{
-		CreatedAfter: time.Now().UTC().Add(-24 * time.Hour).Format(user.TimeFormat),
+		CreatedAfter: utctime.Now().Add(-24 * time.Hour).Format(user.TimeFormat),
 		Country:      "DE",
 		Length:       10,
 		Page:         int64(1),

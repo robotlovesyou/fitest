@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/user"
+	"github.com/robotlovesyou/fitest/pkg/utctime"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -76,8 +77,8 @@ func fakeUserRecord(muts ...func(r *userstore.User)) userstore.User {
 		PasswordHash: "supersecrethash",
 		Email:        faker.Email(),
 		Country:      "DE",
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		CreatedAt:    utctime.Now(),
+		UpdatedAt:    utctime.Now(),
 		Version:      user.DefaultVersion,
 	}
 

@@ -9,6 +9,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
+	"github.com/robotlovesyou/fitest/pkg/utctime"
 )
 
 const (
@@ -163,8 +164,8 @@ func (service *Service) Create(ctx context.Context, newUser *NewUser) (user User
 		PasswordHash: string(passwordHash),
 		Email:        newUser.Email,
 		Country:      newUser.Country,
-		CreatedAt:    time.Now().UTC(),
-		UpdatedAt:    time.Now().UTC(),
+		CreatedAt:    utctime.Now(),
+		UpdatedAt:    utctime.Now(),
 		Version:      DefaultVersion,
 	})
 	if err != nil {
@@ -214,7 +215,7 @@ func (service *Service) Update(ctx context.Context, update *Update) (usr User, e
 	rec.FirstName = update.FirstName
 	rec.LastName = update.LastName
 	rec.Country = update.Country
-	rec.UpdatedAt = time.Now().UTC()
+	rec.UpdatedAt = utctime.Now()
 
 	rec, err = service.store.UpdateOne(ctx, &rec)
 	if err != nil {

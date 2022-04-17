@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
+	"github.com/robotlovesyou/fitest/pkg/utctime"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,11 +77,11 @@ func TestCanPageThroughUserCreatedAfter(t *testing.T) {
 	for i := range users {
 		if i < len(users)/2 {
 			users[i] = fakeUserRecord(func(u *userstore.User) {
-				u.CreatedAt = time.Now().UTC().Add(-24 * time.Hour)
+				u.CreatedAt = utctime.Now().Add(-24 * time.Hour)
 			})
 		} else {
 			users[i] = fakeUserRecord(func(u *userstore.User) {
-				u.CreatedAt = time.Now().UTC()
+				u.CreatedAt = utctime.Now()
 			})
 		}
 
@@ -90,7 +91,7 @@ func TestCanPageThroughUserCreatedAfter(t *testing.T) {
 		page, err := store.FindMany(ctx, &userstore.Query{
 			Page:         1,
 			Length:       10,
-			CreatedAfter: time.Now().UTC().Add(-1 * time.Hour),
+			CreatedAfter: utctime.Now().Add(-1 * time.Hour),
 		})
 		require.NoError(t, err)
 		require.Equal(t, int64(1), page.Page)
@@ -106,12 +107,12 @@ func TestCanPageThroughUserCreatedAfterAndFromCountry(t *testing.T) {
 	for i := range users {
 		if i < len(users)/2 {
 			users[i] = fakeUserRecord(func(u *userstore.User) {
-				u.CreatedAt = time.Now().UTC()
+				u.CreatedAt = utctime.Now()
 				u.Country = "DE"
 			})
 		} else {
 			users[i] = fakeUserRecord(func(u *userstore.User) {
-				u.CreatedAt = time.Now().UTC()
+				u.CreatedAt = utctime.Now()
 				u.Country = "NL"
 			})
 		}
@@ -122,7 +123,7 @@ func TestCanPageThroughUserCreatedAfterAndFromCountry(t *testing.T) {
 		page, err := store.FindMany(ctx, &userstore.Query{
 			Page:         1,
 			Length:       10,
-			CreatedAfter: time.Now().UTC().Add(-1 * time.Hour),
+			CreatedAfter: utctime.Now().Add(-1 * time.Hour),
 			Country:      "NL",
 		})
 		require.NoError(t, err)
