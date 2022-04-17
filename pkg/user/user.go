@@ -17,7 +17,7 @@ const (
 	// TimeFormat is the formatting string used by the users package
 	TimeFormat = time.RFC3339
 	// DefaultVersion is the version for new users
-	DefaultVersion = int32(1)
+	DefaultVersion = int64(1)
 	// DefaultPage is the default page for finding users when none is provided
 	DefaultPage = int64(1)
 	// DefaultLength is the default page length for finding users when none is provided
@@ -58,7 +58,7 @@ type User struct {
 	Country      string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
-	Version      int32
+	Version      int64
 }
 
 type Update struct {
@@ -68,7 +68,7 @@ type Update struct {
 	Password        string `validate:"omitempty,min=10"`
 	ConfirmPassword string `validate:"eqfield=Password"`
 	Country         string `validate:"required,iso3166_1_alpha2"`
-	Version         int32
+	Version         int64
 }
 
 type Ref struct {

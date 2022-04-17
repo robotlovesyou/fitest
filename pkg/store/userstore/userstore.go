@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"math/rand"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,15 +53,22 @@ type User struct {
 	Country      string    `bson:"country"`
 	CreatedAt    time.Time `bson:"created_at"`
 	UpdatedAt    time.Time `bson:"updated_at"`
-	Version      int32     `bson:"version"`
+	Version      int64     `bson:"version"`
 }
 
 type Event struct {
-	State     State     `bson:"state"`
-	Action    Action    `bson:"action"`
+	ID        uuid.UUID
+	State     State  `bson:"state"`
+	Action    Action `bson:"action"`
+	Version   int64
 	CreatedAt time.Time `bson:"created_at"`
 	UpdatedAt time.Time `bson:"updated_at"`
 	Data      *User     `bson:"data"`
+}
+
+type EventResult struct {
+	Err   error
+	Event Event
 }
 
 type Record struct {
@@ -118,23 +127,33 @@ func (store *Store) EnsureIndexes(ctx context.Context) error {
 				bson.E{Key: "data.country", Value: 1},
 			},
 		},
+		{
+			Keys: bson.D{
+				bson.E{Key: "events.0.state", Value: 1},
+				bson.E{Key: "events.0.updated_at", Value: 1},
+			},
+		},
 	})
 	return err
 }
 
+func eventFor(action Action, id uuid.UUID, version int64, user *User) Event {
+	return Event{
+		ID:        id,
+		State:     Pending,
+		Action:    action,
+		Version:   version,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		Data:      user,
+	}
+}
+
 func (store *Store) Create(ctx context.Context, user *User) (User, error) {
 	rec := Record{
-		ID:   user.ID,
-		Data: user,
-		Events: []Event{
-			{
-				State:     Pending,
-				Action:    Created,
-				CreatedAt: time.Now().UTC(),
-				UpdatedAt: time.Now().UTC(),
-				Data:      user,
-			},
-		},
+		ID:     user.ID,
+		Data:   user,
+		Events: []Event{eventFor(Created, user.ID, user.Version, user)},
 	}
 	_, err := store.collection.InsertOne(ctx, &rec)
 	if err != nil {
@@ -196,13 +215,7 @@ func (store *Store) UpdateOne(ctx context.Context, update *User) (user User, err
 			"data": rec,
 		},
 		"$push": bson.M{
-			"events": Event{
-				State:     Pending,
-				Action:    Updated,
-				CreatedAt: time.Now().UTC(),
-				UpdatedAt: time.Now().UTC(),
-				Data:      &rec,
-			},
+			"events": eventFor(Updated, rec.ID, rec.Version, &rec),
 		},
 	})
 	if err != nil {
@@ -225,13 +238,7 @@ func (store *Store) DeleteOne(ctx context.Context, id uuid.UUID) error {
 			"data": nil,
 		},
 		"$push": bson.M{
-			"events": Event{
-				State:     Pending,
-				Action:    Deleted,
-				CreatedAt: time.Now().UTC(),
-				UpdatedAt: time.Now().UTC(),
-				Data:      nil,
-			},
+			"events": eventFor(Deleted, id, math.MaxInt64, nil),
 		},
 	})
 	if err != nil {
@@ -361,4 +368,75 @@ func (store *Store) FindMany(ctx context.Context, query *Query) (page Page, err 
 		Items: items.items,
 	}, err
 
+}
+
+func (store *Store) readAndUpdateNextEvent(ctx context.Context) (e Event, err error) {
+	var rec Record
+	res := store.collection.FindOneAndUpdate(ctx, bson.M{
+		"events.0.state": Pending,
+	}, bson.M{
+		"$set": bson.M{
+			"events.0.state":      Processing,
+			"events.0.updated_at": time.Now().UTC(),
+		},
+	}, options.FindOneAndUpdate().SetSort(bson.M{"events.0.updated_at": 1}).SetReturnDocument(options.Before))
+	if err = res.Err(); err != nil {
+		return e, err
+	}
+	if err = res.Decode(&rec); err != nil {
+		return e, err
+	}
+	return rec.Events[0], nil
+}
+
+func (store *Store) Events(ctx context.Context, minInterval, maxInterval time.Duration) <-chan EventResult {
+	out := make(chan EventResult)
+	go func() {
+		source := rand.New(rand.NewSource(time.Now().UnixNano()))
+		for {
+			var event Event
+			var err error
+			// read the next event in a closure so we can defer the context cancel
+			func() {
+				innerCtx, cancel := context.WithTimeout(ctx, findTimeout)
+				defer cancel()
+				event, err = store.readAndUpdateNextEvent(innerCtx)
+			}()
+			if err != nil && errors.Is(err, mongo.ErrNoDocuments) {
+				// we can ignore this error, it just means there are no waiting events
+				continue
+			}
+			select {
+			case <-ctx.Done():
+				close(out)
+				return
+			case out <- EventResult{Event: event, Err: err}:
+			}
+			waitWithJitter(ctx, minInterval, maxInterval, source)
+		}
+	}()
+	return out
+}
+
+func waitWithJitter(ctx context.Context, minInterval, maxInterval time.Duration, source *rand.Rand) {
+	min, max := int64(minInterval), int64(maxInterval)
+	after := time.After(minInterval + time.Duration(source.Int63n(max-min)))
+	select {
+	case <-ctx.Done():
+	case <-after:
+	}
+}
+
+func (store *Store) ProcessEvent(ctx context.Context, id uuid.UUID, version int64) error {
+	_, err := store.collection.UpdateOne(ctx, bson.M{
+		"_id":                   id,
+		"events.0.state":        Processing,
+		"events.0.data.version": version,
+	}, bson.M{
+		"$pop": bson.M{"events": -1},
+	})
+	if err != nil {
+		err = fmt.Errorf("cannot complete event: %w", err)
+	}
+	return err
 }

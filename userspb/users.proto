@@ -32,7 +32,7 @@ message Update {
     string password = 4;
     string confirmPassword = 5;
     string country  = 6;
-    int32 version = 7;
+    int64 version = 7;
 }
 
 message Ref {
