@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/robotlovesyou/fitest/pkg/event"
 	"github.com/robotlovesyou/fitest/pkg/password"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/user"
@@ -30,13 +32,17 @@ type stubUpdateOne func(context.Context, *userstore.User) (userstore.User, error
 type stubReadOne func(context.Context, uuid.UUID) (userstore.User, error)
 type stubDeleteOne func(context.Context, uuid.UUID) error
 type stubFindMany func(context.Context, *userstore.Query) (userstore.Page, error)
+type stubEvents func(context.Context, time.Duration, time.Duration, time.Duration) <-chan userstore.EventResult
+type stubProcessEvent func(ctx context.Context, id uuid.UUID, version int64) error
 
 type stubUserStore struct {
-	stubCreate    stubCreate
-	stubUpdateOne stubUpdateOne
-	stubReadOne   stubReadOne
-	stubDeleteOne stubDeleteOne
-	stubFindMany  stubFindMany
+	stubCreate       stubCreate
+	stubUpdateOne    stubUpdateOne
+	stubReadOne      stubReadOne
+	stubDeleteOne    stubDeleteOne
+	stubFindMany     stubFindMany
+	stubEvents       stubEvents
+	stubProcessEvent stubProcessEvent
 }
 
 func newStubUserStore() *stubUserStore {
@@ -55,6 +61,12 @@ func newStubUserStore() *stubUserStore {
 		},
 		stubFindMany: func(context.Context, *userstore.Query) (userstore.Page, error) {
 			panic("stub find many")
+		},
+		stubEvents: func(context.Context, time.Duration, time.Duration, time.Duration) <-chan userstore.EventResult {
+			panic("stub events")
+		},
+		stubProcessEvent: func(ctx context.Context, id uuid.UUID, version int64) error {
+			panic("stub process event")
 		},
 	}
 }
@@ -77,6 +89,14 @@ func (store *stubUserStore) DeleteOne(ctx context.Context, id uuid.UUID) error {
 
 func (store *stubUserStore) FindMany(ctx context.Context, query *userstore.Query) (userstore.Page, error) {
 	return store.stubFindMany(ctx, query)
+}
+
+func (store *stubUserStore) Events(ctx context.Context, minInterval, maxInterval, retryTimeout time.Duration) <-chan userstore.EventResult {
+	return store.stubEvents(ctx, minInterval, maxInterval, retryTimeout)
+}
+
+func (store *stubUserStore) ProcessEvent(ctx context.Context, id uuid.UUID, version int64) error {
+	return store.stubProcessEvent(ctx, id, version)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,9 +142,20 @@ func useIDGenerator(idGenerator user.IDGenerator) idGenOpt {
 
 func (igo idGenOpt) isoption() {}
 
+type busOpt struct {
+	bus event.Bus
+}
+
+func (busOpt) isoption() {}
+
+func useBus(bus event.Bus) busOpt {
+	return busOpt{bus: bus}
+}
+
 func withService(store *stubUserStore, options ...option) func(func(*user.Service)) {
 	hasher := user.PasswordHasher(password.NewWeak())
 	idGenerator := uuid.NewRandom
+	var bus event.Bus = event.New()
 
 	for _, o := range options {
 		switch opt := o.(type) {
@@ -132,11 +163,13 @@ func withService(store *stubUserStore, options ...option) func(func(*user.Servic
 			hasher = opt.hasher
 		case idGenOpt:
 			idGenerator = opt.idGenerator
+		case busOpt:
+			bus = opt.bus
 		}
 	}
 
 	return func(f func(service *user.Service)) {
-		f(user.New(store, hasher, idGenerator, validation.New()))
+		f(user.New(store, hasher, idGenerator, validation.New(), bus))
 	}
 }
 

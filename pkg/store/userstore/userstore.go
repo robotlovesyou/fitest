@@ -378,7 +378,7 @@ func (store *Store) readAndUpdateNextEvent(ctx context.Context, retryTimeout tim
 			{"events.0.state": Pending},
 			{
 				"events.0.state":      Processing,
-				"events.0.updated_at": bson.M{"$lt": time.Now().UTC().Add(-1 * retryTimeout)},
+				"events.0.updated_at": bson.M{"$lt": utctime.Now().Add(-1 * retryTimeout)},
 			},
 		},
 	}, bson.M{
@@ -399,7 +399,7 @@ func (store *Store) readAndUpdateNextEvent(ctx context.Context, retryTimeout tim
 func (store *Store) Events(ctx context.Context, minInterval, maxInterval, retryTimeout time.Duration) <-chan EventResult {
 	out := make(chan EventResult)
 	go func() {
-		source := rand.New(rand.NewSource(time.Now().UnixNano()))
+		source := rand.New(rand.NewSource(utctime.Now().UnixNano()))
 		for {
 			var event Event
 			var err error

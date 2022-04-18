@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"sync"
 	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/robotlovesyou/fitest/pkg/event"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/utctime"
 )
@@ -23,6 +26,12 @@ const (
 	DefaultPage = int64(1)
 	// DefaultLength is the default page length for finding users when none is provided
 	DefaultLength = int32(25)
+	// MinPollInterval is the minimum time between polls for events. It should be configurable
+	MinPollInterval = 10 * time.Millisecond
+	// MinPollInterval is the minimum time between polls for events. It should be configurable
+	MaxPollInterval = 30 * time.Millisecond
+	// RetryTimeout is time an event can be left pending before retry. It should be configurable
+	RetryInterval = 10 * time.Second
 )
 
 var (
@@ -62,6 +71,18 @@ type User struct {
 	Version      int64
 }
 
+type SanitizedUser struct {
+	ID        string
+	FirstName string
+	LastName  string
+	Nickname  string
+	Email     string
+	Country   string
+	CreatedAt string
+	UpdatedAt string
+	Version   int64
+}
+
 type Update struct {
 	ID              string `validate:"uuid"`
 	FirstName       string `validate:"required,allowed-runes"`
@@ -70,6 +91,15 @@ type Update struct {
 	ConfirmPassword string `validate:"eqfield=Password"`
 	Country         string `validate:"required,iso3166_1_alpha2"`
 	Version         int64
+}
+
+type Event struct {
+	ID        string `json:"id"`
+	Version   int64  `json:"version"`
+	Action    string `json:"action"`
+	CreatedAt string `json:"created_at"`
+	SentAt    string `json:"sent_at"`
+	Data      *SanitizedUser
 }
 
 type Ref struct {
@@ -94,14 +124,19 @@ type Service struct {
 	hasher      PasswordHasher
 	idGenerator IDGenerator
 	validate    *validator.Validate
+	bus         event.Bus
+	eventMtx    sync.Mutex
+	eventCount  int64
+	successRate float64
 }
 
-func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator, validate *validator.Validate) *Service {
+func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator, validate *validator.Validate, bus event.Bus) *Service {
 	return &Service{
 		store:       store,
 		hasher:      hasher,
 		idGenerator: idGenerator,
 		validate:    validate,
+		bus:         bus,
 	}
 }
 
@@ -111,6 +146,8 @@ type UserStore interface {
 	ReadOne(context.Context, uuid.UUID) (userstore.User, error)
 	DeleteOne(context.Context, uuid.UUID) error
 	FindMany(context.Context, *userstore.Query) (userstore.Page, error)
+	Events(context.Context, time.Duration, time.Duration, time.Duration) <-chan userstore.EventResult
+	ProcessEvent(ctx context.Context, id uuid.UUID, version int64) error
 }
 
 // Interface for password hasher.
@@ -278,4 +315,110 @@ func (service *Service) FindUsers(ctx context.Context, query *Query) (p Page, er
 		Total: page.Total,
 		Items: items,
 	}, nil
+}
+
+func sanitizedUserFromUserstoreUser(uu *userstore.User) *SanitizedUser {
+	if uu == nil {
+		return nil
+	}
+	return &SanitizedUser{
+		ID:        uu.ID.String(),
+		FirstName: uu.FirstName,
+		LastName:  uu.LastName,
+		Nickname:  uu.Nickname,
+		Email:     uu.Email,
+		Country:   uu.Country,
+		CreatedAt: uu.CreatedAt.Format(TimeFormat),
+		UpdatedAt: uu.UpdatedAt.Format(TimeFormat),
+		Version:   uu.Version,
+	}
+}
+
+func eventFromUserstoreEvent(ue *userstore.Event) Event {
+	return Event{
+		ID:        ue.ID.String(),
+		Version:   ue.Version,
+		Action:    string(ue.Action),
+		CreatedAt: ue.CreatedAt.Format(TimeFormat),
+		SentAt:    utctime.Now().Format(TimeFormat),
+		Data:      sanitizedUserFromUserstoreUser(ue.Data),
+	}
+}
+
+func (service *Service) publishChange(ctx context.Context, ue userstore.Event) {
+	ctx, cancel := context.WithTimeout(ctx, RetryInterval)
+	defer cancel()
+	go func() {
+		result, err := event.SendJSON(eventFromUserstoreEvent(&ue), service.bus)
+		if err != nil {
+			// TODO: log the failure
+			log.Println("recording failure to send")
+			service.recordEventResult(false)
+			return
+		}
+		err = result.Done(ctx)
+		if err != nil {
+			// TODO: log the failure
+			log.Println("recording failure to complete")
+			service.recordEventResult(false)
+			return
+		}
+		if err = service.store.ProcessEvent(ctx, ue.ID, ue.Version); err != nil {
+			service.recordEventResult(false)
+			return
+		}
+		log.Println("recording success")
+		service.recordEventResult(true)
+	}()
+}
+
+func (service *Service) PublishChanges(ctx context.Context) {
+	events := service.store.Events(ctx, MinPollInterval, MaxPollInterval, RetryInterval)
+Loop:
+	for {
+		var result userstore.EventResult
+		var more bool
+		select {
+		case <-ctx.Done():
+			break Loop
+		case result, more = <-events:
+		}
+		if !more {
+			break Loop
+		}
+		if result.Err != nil {
+			// TODO: log the failure
+			log.Println("recording bad result")
+			service.recordEventResult(false)
+			continue
+		}
+		service.publishChange(ctx, result.Event)
+	}
+}
+
+func (service *Service) recordEventResult(ok bool) {
+	val := float64(0.0)
+	if ok {
+		val = float64(1.0)
+	}
+	service.eventMtx.Lock()
+	defer service.eventMtx.Unlock()
+	service.eventCount += 1
+	change := (val - service.successRate) / float64(service.eventCount)
+	service.successRate += change
+}
+
+func (service *Service) CheckEventSuccessRateAndReset() float64 {
+	service.eventMtx.Lock()
+	defer service.eventMtx.Unlock()
+	rate := service.successRate
+	service.eventCount = 0
+	service.successRate = 0.0
+	return rate
+}
+
+func (service *Service) CheckEventCount() int64 {
+	service.eventMtx.Lock()
+	defer service.eventMtx.Unlock()
+	return service.eventCount
 }
