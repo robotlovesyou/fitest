@@ -9,6 +9,7 @@ import (
 
 	"github.com/bxcodec/faker/v3"
 	"github.com/google/uuid"
+	"github.com/robotlovesyou/fitest/pkg/log"
 	"github.com/robotlovesyou/fitest/pkg/rpc"
 	"github.com/robotlovesyou/fitest/pkg/user"
 	"github.com/robotlovesyou/fitest/pkg/utctime"
@@ -208,8 +209,12 @@ func withClient(svc rpc.UsersService, f func(userspb.UsersClient)) {
 	}
 	serverAddress := lis.Addr().String()
 
+	logger, err := log.New("RPC Tests")
+	if err != nil {
+		panic("cannot create logger")
+	}
 	grpcServer := grpc.NewServer()
-	userspb.RegisterUsersServer(grpcServer, rpc.New(svc))
+	userspb.RegisterUsersServer(grpcServer, rpc.New(svc, logger))
 	go grpcServer.Serve(lis)
 	defer grpcServer.Stop()
 

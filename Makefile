@@ -22,3 +22,6 @@ protoc:
     --go-grpc_out=. --go-grpc_opt=paths=source_relative \
     users.proto && \
 	popd
+
+cloc: 
+	cloc . --not-match-f=\.pb\.go

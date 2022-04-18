@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/event"
+	"github.com/robotlovesyou/fitest/pkg/log"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/utctime"
 )
@@ -128,15 +128,19 @@ type Service struct {
 	eventMtx    sync.Mutex
 	eventCount  int64
 	successRate float64
+	// In a production setting I would declare this as an interface to allow for stub implementations for testing
+	// I am handling most logging at the RPC level, logging success or failure, but also need to log events, which don't exist at the RPC level
+	logger *log.Logger
 }
 
-func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator, validate *validator.Validate, bus event.Bus) *Service {
+func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator, validate *validator.Validate, bus event.Bus, logger *log.Logger) *Service {
 	return &Service{
 		store:       store,
 		hasher:      hasher,
 		idGenerator: idGenerator,
 		validate:    validate,
 		bus:         bus,
+		logger:      logger,
 	}
 }
 
@@ -351,15 +355,13 @@ func (service *Service) publishChange(ctx context.Context, ue userstore.Event) {
 	go func() {
 		result, err := event.SendJSON(eventFromUserstoreEvent(&ue), service.bus)
 		if err != nil {
-			// TODO: log the failure
-			log.Println("recording failure to send")
+			service.logger.Errorf(ctx, err, "error sending event with id:%s and version %d", ue.ID, ue.Version)
 			service.recordEventResult(false)
 			return
 		}
 		err = result.Done(ctx)
 		if err != nil {
-			// TODO: log the failure
-			log.Println("recording failure to complete")
+			service.logger.Errorf(ctx, err, "did not confirm sending event with id:%s and version %d", ue.ID, ue.Version)
 			service.recordEventResult(false)
 			return
 		}
@@ -367,7 +369,7 @@ func (service *Service) publishChange(ctx context.Context, ue userstore.Event) {
 			service.recordEventResult(false)
 			return
 		}
-		log.Println("recording success")
+		service.logger.Infof(ctx, "send event with id: %s and version: %d", ue.ID, ue.Version)
 		service.recordEventResult(true)
 	}()
 }
@@ -387,8 +389,7 @@ Loop:
 			break Loop
 		}
 		if result.Err != nil {
-			// TODO: log the failure
-			log.Println("recording bad result")
+			service.logger.Errorf(ctx, result.Err, "error receiving event from store")
 			service.recordEventResult(false)
 			continue
 		}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/event"
+	"github.com/robotlovesyou/fitest/pkg/log"
 	"github.com/robotlovesyou/fitest/pkg/password"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/user"
@@ -169,7 +170,11 @@ func withService(store *stubUserStore, options ...option) func(func(*user.Servic
 	}
 
 	return func(f func(service *user.Service)) {
-		f(user.New(store, hasher, idGenerator, validation.New(), bus))
+		logger, err := log.New("user tests")
+		if err != nil {
+			panic(err)
+		}
+		f(user.New(store, hasher, idGenerator, validation.New(), bus, logger))
 	}
 }
 
