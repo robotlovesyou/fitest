@@ -130,21 +130,6 @@ func fakeUsersQuery() userspb.Query {
 }
 
 // fake user creates a fake user for testing
-func fakeUser() user.User {
-	return user.User{
-		ID:           uuid.Must(uuid.NewRandom()),
-		FirstName:    faker.FirstName(),
-		LastName:     faker.LastName(),
-		Nickname:     faker.Username(),
-		PasswordHash: "HashOfASuperSecretPassword",
-		Email:        faker.Email(),
-		Country:      "DE",
-		CreatedAt:    utctime.Now(),
-		UpdatedAt:    utctime.Now(),
-	}
-}
-
-// fake user creates a fake user for testing
 func fakeSanitizedUser() user.SanitizedUser {
 	return user.SanitizedUser{
 		ID:        uuid.Must(uuid.NewRandom()).String(),
