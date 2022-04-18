@@ -1,3 +1,6 @@
+// Package user implements the business logic of the service.
+// It ensures requests are valid before submtting them to the store
+// and handles publishing a stream of change events
 package user
 
 import (
@@ -60,6 +63,7 @@ type NewUser struct {
 	Country         string `validate:"required,iso3166_1_alpha2"`
 }
 
+// User is the item stored by the service
 type User struct {
 	ID           uuid.UUID
 	FirstName    string
@@ -73,6 +77,7 @@ type User struct {
 	Version      int64
 }
 
+// Sanitized user is a User with sensitive information removed
 type SanitizedUser struct {
 	ID        string
 	FirstName string
@@ -85,6 +90,7 @@ type SanitizedUser struct {
 	Version   int64
 }
 
+// Update represents an update to the service
 type Update struct {
 	ID              string `validate:"uuid"`
 	FirstName       string `validate:"required,allowed-runes"`
@@ -95,6 +101,7 @@ type Update struct {
 	Version         int64
 }
 
+// Event is a change message as published by the service
 type Event struct {
 	ID        string `json:"id"`
 	Version   int64  `json:"version"`
@@ -104,10 +111,12 @@ type Event struct {
 	Data      *SanitizedUser
 }
 
+// Ref is a reference to a single user
 type Ref struct {
 	ID string `validate:"uuid"`
 }
 
+// Query represents the parameters used to request a page of users
 type Query struct {
 	CreatedAfter string
 	Country      string
@@ -115,12 +124,14 @@ type Query struct {
 	Page         int64
 }
 
+// Page is a page of users
 type Page struct {
 	Page  int64
 	Total int64
-	Items []User
+	Items []SanitizedUser
 }
 
+// Service provides the services offered by this package
 type Service struct {
 	store       UserStore
 	hasher      PasswordHasher
@@ -135,6 +146,8 @@ type Service struct {
 	logger *log.Logger
 }
 
+// New creates a new service.
+// It has a lot of parameters. It might be better to tidy them using an options struct
 func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator, validate *validator.Validate, bus event.Bus, logger *log.Logger) *Service {
 	return &Service{
 		store:       store,
@@ -146,6 +159,7 @@ func New(store UserStore, hasher PasswordHasher, idGenerator IDGenerator, valida
 	}
 }
 
+// Userstore represents the fuctions which must be implemented by any storage service
 type UserStore interface {
 	Create(context.Context, *userstore.User) (userstore.User, error)
 	UpdateOne(context.Context, *userstore.User) (userstore.User, error)
@@ -162,6 +176,7 @@ type PasswordHasher interface {
 	Compare(hash string, plain string) bool
 }
 
+// Interface ID generation
 type IDGenerator func() (uuid.UUID, error)
 
 func copyStoreUserToUser(usr *userstore.User) User {
@@ -179,6 +194,7 @@ func copyStoreUserToUser(usr *userstore.User) User {
 	}
 }
 
+// Create creates a new user if the request is valid
 func (service *Service) Create(ctx context.Context, newUser *NewUser) (user User, err error) {
 	id, err := service.idGenerator()
 	if err != nil {
@@ -232,6 +248,7 @@ func (service *Service) updateHashIfSet(update *Update, rec *userstore.User) (er
 	return
 }
 
+// Update updates a user if the request is valid and references an existing user
 func (service *Service) Update(ctx context.Context, update *Update) (usr User, err error) {
 	if err := service.validate.Struct(update); err != nil {
 		// In a real world implementation, the validation would need to return information rich enough to allow the consumer to
@@ -274,6 +291,7 @@ func (service *Service) Update(ctx context.Context, update *Update) (usr User, e
 	return copyStoreUserToUser(&rec), nil
 }
 
+// DeleteUser deletes a single user, if the referenced user exists
 func (service *Service) DeleteUser(ctx context.Context, ref *Ref) error {
 	if err := service.validate.Struct(ref); err != nil {
 		return ErrInvalid
@@ -290,6 +308,7 @@ func (service *Service) DeleteUser(ctx context.Context, ref *Ref) error {
 	return nil
 }
 
+// FindUsers finds a page of users matching the given query
 func (service *Service) FindUsers(ctx context.Context, query *Query) (p Page, err error) {
 	ca, err := time.Parse(TimeFormat, query.CreatedAfter)
 	if err != nil {
@@ -312,9 +331,9 @@ func (service *Service) FindUsers(ctx context.Context, query *Query) (p Page, er
 	if err != nil {
 		return p, fmt.Errorf("cannot find users in store: %w", err)
 	}
-	items := make([]User, 0, len(page.Items))
+	items := make([]SanitizedUser, 0, len(page.Items))
 	for _, itm := range page.Items {
-		items = append(items, copyStoreUserToUser(&itm))
+		items = append(items, *sanitizedUserFromUserstoreUser(&itm))
 	}
 	return Page{
 		Page:  page.Page,
@@ -376,6 +395,9 @@ func (service *Service) publishChange(ctx context.Context, ue userstore.Event) {
 	}()
 }
 
+// Publish changes promots the service to start listening to the store for change events.
+// and publishing to the services bus
+// To stop listenting, cancel the provided context
 func (service *Service) PublishChanges(ctx context.Context) {
 	events := service.store.Events(ctx, MinPollInterval, MaxPollInterval, RetryInterval)
 Loop:
@@ -416,6 +438,8 @@ func (service *Service) recordEventResult(ok bool) {
 	service.successRate += change
 }
 
+// CheckEventSuccessRateAndReset returns the proportion of events which were successfully published since the last request, and resets the counter
+// It can be used by a health check
 func (service *Service) CheckEventSuccessRateAndReset() float64 {
 	service.eventMtx.Lock()
 	defer service.eventMtx.Unlock()
@@ -425,6 +449,7 @@ func (service *Service) CheckEventSuccessRateAndReset() float64 {
 	return rate
 }
 
+// CheckEventCount returns the number of events recorded since the last reset
 func (service *Service) CheckEventCount() int64 {
 	service.eventMtx.Lock()
 	defer service.eventMtx.Unlock()

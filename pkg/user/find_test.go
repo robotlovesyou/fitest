@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
 	"github.com/robotlovesyou/fitest/pkg/user"
 	"github.com/robotlovesyou/fitest/pkg/utctime"
@@ -51,15 +52,14 @@ func TestCorrectParametersPassedToStoreFind(t *testing.T) {
 		require.Equal(t, page.Total, p.Total)
 		require.Len(t, p.Items, len(page.Items))
 		for i, usr := range page.Items {
-			require.True(t, compareIDs(usr.ID, p.Items[i].ID))
+			require.True(t, compareIDs(usr.ID, uuid.MustParse(p.Items[i].ID)))
 			require.Equal(t, usr.FirstName, p.Items[i].FirstName)
 			require.Equal(t, usr.LastName, p.Items[i].LastName)
 			require.Equal(t, usr.Nickname, p.Items[i].Nickname)
-			require.Equal(t, usr.PasswordHash, p.Items[i].PasswordHash)
 			require.Equal(t, usr.Email, p.Items[i].Email)
 			require.Equal(t, usr.Country, p.Items[i].Country)
-			require.Equal(t, usr.CreatedAt, p.Items[i].CreatedAt)
-			require.Equal(t, usr.UpdatedAt, p.Items[i].UpdatedAt)
+			require.Equal(t, usr.CreatedAt.Format(user.TimeFormat), p.Items[i].CreatedAt)
+			require.Equal(t, usr.UpdatedAt.Format(user.TimeFormat), p.Items[i].UpdatedAt)
 			require.Equal(t, usr.Version, p.Items[i].Version)
 		}
 	})

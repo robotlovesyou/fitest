@@ -1,3 +1,7 @@
+// Package store implements a store for user details backed by mongodb
+// Records are stored using a transactional outbox pattern, where both updated data, and
+// and details of an event to be published are stored atomically.
+// Events can then be handled in a separate process
 package userstore
 
 import (
@@ -46,6 +50,7 @@ var (
 	ErrInvalidVersion = errors.New("the user cannot be updated because the version is invalid")
 )
 
+// User represents a user as stored in the database
 type User struct {
 	ID           uuid.UUID `bson:"id"`
 	FirstName    string    `bson:"first_name"`
@@ -59,6 +64,7 @@ type User struct {
 	Version      int64     `bson:"version"`
 }
 
+// Event represents an event about a mutation
 type Event struct {
 	ID        uuid.UUID
 	State     State  `bson:"state"`
@@ -69,17 +75,21 @@ type Event struct {
 	Data      *User     `bson:"data"`
 }
 
+// EventResult represents the result of reading the next event from the store
 type EventResult struct {
 	Err   error
 	Event Event
 }
 
+// Record is the top level object stored in the database.
+// It consists of a user record, and an array of pending or processing events
 type Record struct {
 	ID     uuid.UUID `bson:"_id"`
 	Data   *User     `bson:"data"`
 	Events []Event   `bson:"events"`
 }
 
+// Query represents the paramteters of a find query
 type Query struct {
 	CreatedAfter time.Time
 	Country      string
@@ -87,17 +97,20 @@ type Query struct {
 	Page         int64
 }
 
+// Page represents a page of results
 type Page struct {
 	Page  int64
 	Total int64
 	Items []User
 }
 
+// Store provides services for storing and retrieving data
 type Store struct {
 	db         *mongo.Database
 	collection *mongo.Collection
 }
 
+// New creates a new store
 func New(db *mongo.Database) *Store {
 	return &Store{
 		db:         db,
@@ -105,8 +118,9 @@ func New(db *mongo.Database) *Store {
 	}
 }
 
+// Ensure indexes creates the set of indexes required by the store
+// creating indexes in the foreground like this could be problematic for a production service.
 func (store *Store) EnsureIndexes(ctx context.Context) error {
-	// creating indexes in the foreground like this could be problematic for a production service
 	_, err := store.collection.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
 			Keys: bson.D{
@@ -152,6 +166,7 @@ func eventFor(action Action, id uuid.UUID, version int64, user *User) Event {
 	}
 }
 
+// Create creates a new user record
 func (store *Store) Create(ctx context.Context, user *User) (User, error) {
 	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "CreateUserRecord")
 	defer span.End()
@@ -173,6 +188,7 @@ func (store *Store) Create(ctx context.Context, user *User) (User, error) {
 	return *user, nil
 }
 
+// ReadOne reads a single user record by ID
 func (store *Store) ReadOne(ctx context.Context, id uuid.UUID) (user User, err error) {
 	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "ReadOneRecord")
 	defer span.End()
@@ -195,6 +211,7 @@ func (store *Store) ReadOne(ctx context.Context, id uuid.UUID) (user User, err e
 	return *rec.Data, nil
 }
 
+// UpdateOne updates a single user record, unless the provided update is stale
 func (store *Store) UpdateOne(ctx context.Context, update *User) (user User, err error) {
 	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "UpdateOneRecord")
 	defer span.End()
@@ -244,6 +261,7 @@ func (store *Store) UpdateOne(ctx context.Context, update *User) (user User, err
 	return rec, err
 }
 
+// DeleteOne deletes a single user record
 func (store *Store) DeleteOne(ctx context.Context, id uuid.UUID) error {
 	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "DeleteOneRecord")
 	defer span.End()
@@ -292,6 +310,7 @@ type totalResult struct {
 	err   error
 }
 
+// findTotal reads the total count of user records matching the given query
 func (store *Store) findTotal(ctx context.Context, query *Query) <-chan totalResult {
 	out := make(chan totalResult)
 	go func(q Query) {
@@ -314,6 +333,7 @@ type itemsResult struct {
 	err   error
 }
 
+// findItems items returns a page of users matching the given query
 func (store *Store) findItems(ctx context.Context, query *Query) <-chan itemsResult {
 	out := make(chan itemsResult)
 	go func(q Query) {
@@ -353,6 +373,7 @@ func (store *Store) findItems(ctx context.Context, query *Query) <-chan itemsRes
 	return out
 }
 
+// FindMany fetches pages of users matching the given query. Each request also returns the total count of users
 func (store *Store) FindMany(ctx context.Context, query *Query) (page Page, err error) {
 	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "CreateUserRecord")
 	defer span.End()
@@ -423,6 +444,7 @@ func (store *Store) readAndUpdateNextEvent(ctx context.Context, retryTimeout tim
 	return rec.Events[0], nil
 }
 
+// Events returns a channel of events from the store.
 func (store *Store) Events(ctx context.Context, minInterval, maxInterval, retryTimeout time.Duration) <-chan EventResult {
 	out := make(chan EventResult)
 	go func() {
@@ -463,6 +485,7 @@ func waitWithJitter(ctx context.Context, minInterval, maxInterval time.Duration,
 	}
 }
 
+// Process event marks the matching event as processed by removing it from the store
 func (store *Store) ProcessEvent(ctx context.Context, id uuid.UUID, version int64) error {
 	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "ProcessEvent")
 	defer span.End()

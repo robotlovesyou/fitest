@@ -59,11 +59,24 @@ func pbUserFromUser(user *user.User) *userspb.User {
 	}
 }
 
+func pbUserFromSanitizedUser(user *user.SanitizedUser) *userspb.User {
+	return &userspb.User{
+		Id:        user.ID,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Nickname:  user.Nickname,
+		Email:     user.Email,
+		Country:   user.Country,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+}
+
 // pbPageFromPage converts a user.Page into a userspb.Page
 func pbPageFromPage(page *user.Page) *userspb.Page {
 	items := make([]*userspb.User, 0, len(page.Items))
 	for _, itm := range page.Items {
-		items = append(items, pbUserFromUser(&itm))
+		items = append(items, pbUserFromSanitizedUser(&itm))
 	}
 	return &userspb.Page{
 		Page:  page.Page,

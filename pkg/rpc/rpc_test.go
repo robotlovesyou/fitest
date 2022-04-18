@@ -144,6 +144,20 @@ func fakeUser() user.User {
 	}
 }
 
+// fake user creates a fake user for testing
+func fakeSanitizedUser() user.SanitizedUser {
+	return user.SanitizedUser{
+		ID:        uuid.Must(uuid.NewRandom()).String(),
+		FirstName: faker.FirstName(),
+		LastName:  faker.LastName(),
+		Nickname:  faker.Username(),
+		Email:     faker.Email(),
+		Country:   "DE",
+		CreatedAt: utctime.Now().Format(user.TimeFormat),
+		UpdatedAt: utctime.Now().Format(user.TimeFormat),
+	}
+}
+
 // userFromNewUser creates a fake user from a new user for testing
 func userFromNewUser(newUser user.NewUser) user.User {
 	return user.User{
@@ -176,9 +190,9 @@ func userFromUserUpdate(userUpdate user.Update) user.User {
 
 // usersPageFromQuery creates a page of fake users from a query for testing
 func usersPageFromQuery(query user.Query) user.Page {
-	items := make([]user.User, 0, query.Length)
+	items := make([]user.SanitizedUser, 0, query.Length)
 	for i := 0; i < int(query.Length); i += 1 {
-		items = append(items, fakeUser())
+		items = append(items, fakeSanitizedUser())
 	}
 	return user.Page{
 		Page:  query.Page,
@@ -197,6 +211,17 @@ func compareUserToPBUser(t *testing.T, usr user.User, pbUser *userspb.User) {
 	require.Equal(t, usr.Country, pbUser.Country)
 	require.Equal(t, usr.CreatedAt.Format(user.TimeFormat), pbUser.CreatedAt)
 	require.Equal(t, usr.UpdatedAt.Format(user.TimeFormat), pbUser.UpdatedAt)
+}
+
+func compareSanitizedUserToPBUser(t *testing.T, usr user.SanitizedUser, pbUser *userspb.User) {
+	require.Equal(t, usr.ID, pbUser.Id)
+	require.Equal(t, usr.FirstName, pbUser.FirstName)
+	require.Equal(t, usr.LastName, pbUser.LastName)
+	require.Equal(t, usr.Nickname, pbUser.Nickname)
+	require.Equal(t, usr.Email, pbUser.Email)
+	require.Equal(t, usr.Country, pbUser.Country)
+	require.Equal(t, usr.CreatedAt, pbUser.CreatedAt)
+	require.Equal(t, usr.UpdatedAt, pbUser.UpdatedAt)
 }
 
 // withClient creates and instantiates a grpc server which delegates calls to the provided
@@ -454,7 +479,7 @@ func TestFindUsersRPCCallsServiceAndRespondsWithCorrectValues(t *testing.T) {
 		require.Len(t, page.Items, len(response.Items))
 		require.Equal(t, page.Total, response.Total)
 		for i, itm := range page.Items {
-			compareUserToPBUser(t, response.Items[i], itm)
+			compareSanitizedUserToPBUser(t, response.Items[i], itm)
 		}
 	})
 }
