@@ -18,3 +18,4 @@ Take home tech test for Face IT
 * Document the decision not to verify the old password on update (we are not doing authn/z)
 * Document the decision to make email and nickname unique and not updatable
 * Set a request timeout
+* Document the decision to record

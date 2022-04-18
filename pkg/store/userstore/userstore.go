@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/robotlovesyou/fitest/pkg/telemetry"
 	"github.com/robotlovesyou/fitest/pkg/utctime"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.opentelemetry.io/otel"
 )
 
 type State string
@@ -151,6 +153,8 @@ func eventFor(action Action, id uuid.UUID, version int64, user *User) Event {
 }
 
 func (store *Store) Create(ctx context.Context, user *User) (User, error) {
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "CreateUserRecord")
+	defer span.End()
 	rec := Record{
 		ID:     user.ID,
 		Data:   user,
@@ -158,6 +162,7 @@ func (store *Store) Create(ctx context.Context, user *User) (User, error) {
 	}
 	_, err := store.collection.InsertOne(ctx, &rec)
 	if err != nil {
+		span.RecordError(err)
 		if mongo.IsDuplicateKeyError(err) {
 			// Since there are multiple unique indexes, a real world implementation should
 			// allow a consumer to differentiate between causes
@@ -169,11 +174,14 @@ func (store *Store) Create(ctx context.Context, user *User) (User, error) {
 }
 
 func (store *Store) ReadOne(ctx context.Context, id uuid.UUID) (user User, err error) {
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "ReadOneRecord")
+	defer span.End()
 	res := store.collection.FindOne(ctx, bson.M{
 		"_id":     id,
 		"data.id": id, // deleted records will not have an id value but can still have events pending
 	})
 	if err = res.Err(); err != nil {
+		span.RecordError(err)
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return user, ErrNotFound
 		}
@@ -181,21 +189,25 @@ func (store *Store) ReadOne(ctx context.Context, id uuid.UUID) (user User, err e
 	}
 	var rec Record
 	if err = res.Decode(&rec); err != nil {
+		span.RecordError(err)
 		return user, fmt.Errorf("cannot decode record: %w", err)
 	}
 	return *rec.Data, nil
 }
 
 func (store *Store) UpdateOne(ctx context.Context, update *User) (user User, err error) {
-
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "UpdateOneRecord")
+	defer span.End()
 	rec, err := store.ReadOne(ctx, update.ID)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, ErrNotFound) {
 			return user, err
 		}
 		return user, fmt.Errorf("cannot read record for updating: %w", err)
 	}
 	if rec.Version != update.Version {
+		span.RecordError(err)
 		return user, ErrInvalidVersion
 	}
 
@@ -220,17 +232,21 @@ func (store *Store) UpdateOne(ctx context.Context, update *User) (user User, err
 		},
 	})
 	if err != nil {
+		span.RecordError(err)
 		return user, fmt.Errorf("cannot update user record: %w", err)
 	}
 	if res.ModifiedCount != 1 {
 		// It is also possible to get here if the user was updated between the read and update calls.
 		// A real world implementation may want to differentiate between those states
+		span.RecordError(ErrInvalidVersion)
 		return user, ErrInvalidVersion
 	}
 	return rec, err
 }
 
 func (store *Store) DeleteOne(ctx context.Context, id uuid.UUID) error {
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "DeleteOneRecord")
+	defer span.End()
 	res, err := store.collection.UpdateOne(ctx, bson.M{
 		"_id":     id,
 		"data.id": id,
@@ -243,9 +259,11 @@ func (store *Store) DeleteOne(ctx context.Context, id uuid.UUID) error {
 		},
 	})
 	if err != nil {
+		span.RecordError(err)
 		return fmt.Errorf("cannot delete user: %w", err)
 	}
 	if res.ModifiedCount != 1 {
+		span.RecordError(ErrNotFound)
 		return ErrNotFound
 	}
 	return nil
@@ -336,6 +354,9 @@ func (store *Store) findItems(ctx context.Context, query *Query) <-chan itemsRes
 }
 
 func (store *Store) FindMany(ctx context.Context, query *Query) (page Page, err error) {
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "CreateUserRecord")
+	defer span.End()
+
 	ctx, cancel := context.WithTimeout(ctx, findTimeout)
 	defer cancel()
 
@@ -346,12 +367,16 @@ func (store *Store) FindMany(ctx context.Context, query *Query) (page Page, err 
 
 	select {
 	case <-ctx.Done():
-		return page, fmt.Errorf("cannot find users total: %w", ctx.Err())
+		err = fmt.Errorf("cannot find users total: %w", ctx.Err())
+		span.RecordError(err)
+		return page, err
 	case total = <-totalChan:
 	}
 
 	select {
 	case <-ctx.Done():
+		err = fmt.Errorf("cannot find users: %w", ctx.Err())
+		span.RecordError(err)
 		return page, fmt.Errorf("cannot find users: %w", ctx.Err())
 	case items = <-itemsChan:
 	}
@@ -359,7 +384,9 @@ func (store *Store) FindMany(ctx context.Context, query *Query) (page Page, err 
 	switch {
 	case total.err != nil:
 		err = total.err
+		span.RecordError(err)
 	case items.err != nil:
+		span.RecordError(err)
 		err = items.err
 	}
 
@@ -401,6 +428,8 @@ func (store *Store) Events(ctx context.Context, minInterval, maxInterval, retryT
 	go func() {
 		source := rand.New(rand.NewSource(utctime.Now().UnixNano()))
 		for {
+			ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "FetchEvent")
+			defer span.End()
 			var event Event
 			var err error
 			// read the next event in a closure so we can defer the context cancel
@@ -435,6 +464,8 @@ func waitWithJitter(ctx context.Context, minInterval, maxInterval time.Duration,
 }
 
 func (store *Store) ProcessEvent(ctx context.Context, id uuid.UUID, version int64) error {
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "ProcessEvent")
+	defer span.End()
 	_, err := store.collection.UpdateOne(ctx, bson.M{
 		"_id":                   id,
 		"events.0.state":        Processing,
@@ -443,6 +474,7 @@ func (store *Store) ProcessEvent(ctx context.Context, id uuid.UUID, version int6
 		"$pop": bson.M{"events": -1},
 	})
 	if err != nil {
+		span.RecordError(err)
 		err = fmt.Errorf("cannot complete event: %w", err)
 	}
 	return err

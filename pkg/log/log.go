@@ -29,7 +29,7 @@ func New(name string) (*Logger, error) {
 	}, nil
 }
 
-func getRequestID(ctx context.Context) string {
+func GetRequestID(ctx context.Context) string {
 	raw := ctx.Value(RequestIDKey)
 	if raw == nil {
 		return DefaultRequestID
@@ -42,11 +42,11 @@ func getRequestID(ctx context.Context) string {
 }
 
 func (l *Logger) Infof(ctx context.Context, format string, args ...any) {
-	l.logger.Infow(fmt.Sprintf(format, args...), "request_id", getRequestID(ctx))
+	l.logger.Infow(fmt.Sprintf(format, args...), "request_id", GetRequestID(ctx))
 }
 
 func (l *Logger) Errorf(ctx context.Context, err error, format string, args ...any) {
-	l.logger.Errorw(fmt.Sprintf(format, args...), "error", err.Error(), "request_id", getRequestID(ctx))
+	l.logger.Errorw(fmt.Sprintf(format, args...), "error", err.Error(), "request_id", GetRequestID(ctx))
 }
 
 func WithRequestID(ctx context.Context, requestID string) context.Context {

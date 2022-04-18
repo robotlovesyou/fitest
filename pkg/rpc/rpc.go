@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/robotlovesyou/fitest/pkg/log"
+	"github.com/robotlovesyou/fitest/pkg/telemetry"
 	"github.com/robotlovesyou/fitest/pkg/user"
 	"github.com/robotlovesyou/fitest/userspb"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -73,7 +75,10 @@ func pbPageFromPage(page *user.Page) *userspb.Page {
 // CreateUser implements the userspb.UsersServer.CreateUser function, allowing clients to create new users
 func (svr *RPCServer) CreateUser(ctx context.Context, newUser *userspb.NewUser) (*userspb.User, error) {
 	// placing the email in the logs like this could be a GDPR issue, depending on company policy
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "CreateUser")
+	defer span.End()
 	svr.logger.Infof(ctx, "creating user %s", newUser.Email)
+
 	usr, err := svr.service.CreateUser(ctx, &user.NewUser{
 		FirstName:       newUser.FirstName,
 		LastName:        newUser.LastName,
@@ -85,6 +90,7 @@ func (svr *RPCServer) CreateUser(ctx context.Context, newUser *userspb.NewUser) 
 	})
 	if err != nil {
 		svr.logger.Errorf(ctx, err, "error creating user %s", newUser.Email)
+		span.RecordError(err)
 		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
 		// In a real world implementation I would, where appropriate, include detail via status details.
 		switch {
@@ -102,7 +108,11 @@ func (svr *RPCServer) CreateUser(ctx context.Context, newUser *userspb.NewUser) 
 
 // UpdateUser implements the userspb.UsersServer.UpdateUser function, allowing clients to update existing users
 func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *userspb.Update) (*userspb.User, error) {
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "UpdateUser")
+	defer span.End()
 	svr.logger.Infof(ctx, "updating user %s", userUpdate.Id)
+
+	defer span.End()
 	usr, err := svr.service.UpdateUser(ctx, &user.Update{
 		ID:              userUpdate.Id,
 		FirstName:       userUpdate.FirstName,
@@ -114,6 +124,7 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *userspb.Update
 	})
 	if err != nil {
 		svr.logger.Errorf(ctx, err, "error updating user %s", userUpdate.Id)
+		span.RecordError(err)
 		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
 		// In a real world implementation I would, where appropriate, include detail via status details.
 		switch {
@@ -132,10 +143,13 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *userspb.Update
 
 // DeleteUser implements the userspb.UsersServer.DeleteUser function, allowing clients to delete users
 func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *userspb.Ref) (*emptypb.Empty, error) {
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "DeleteUser")
+	defer span.End()
 	svr.logger.Infof(ctx, "deleting user %s", userRef.Id)
 
 	if err := svr.service.DeleteUser(ctx, &user.Ref{ID: userRef.Id}); err != nil {
 		svr.logger.Errorf(ctx, err, "error deleting user: %s", userRef.Id)
+		span.RecordError(err)
 		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
 		// In a real world implementation I would, where appropriate, include detail via status details.
 		switch {
@@ -152,7 +166,10 @@ func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *userspb.Ref) (*em
 
 // FindUsers implements the userspb.UsersServer.FindUsers function, allowing clients to find users and page through results
 func (svr *RPCServer) FindUsers(ctx context.Context, query *userspb.Query) (*userspb.Page, error) {
+	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "FindUsers")
+	defer span.End()
 	svr.logger.Infof(ctx, "finding page %d of users with country '%s' created after '%s'", query.Page, query.Country, query.CreatedAfter)
+
 	page, err := svr.service.FindUsers(ctx, &user.Query{
 		CreatedAfter: query.CreatedAfter,
 		Country:      query.Country,
@@ -160,6 +177,7 @@ func (svr *RPCServer) FindUsers(ctx context.Context, query *userspb.Query) (*use
 		Page:         query.Page,
 	})
 	if err != nil {
+		span.RecordError(err)
 		svr.logger.Errorf(ctx, err, "error finding page %d of users with country '%s' created after '%s'", query.Page, query.Country, query.CreatedAfter)
 		return nil, status.Error(codes.Internal, msgInternalServerError)
 	}

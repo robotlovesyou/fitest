@@ -12,7 +12,9 @@ import (
 	"github.com/robotlovesyou/fitest/pkg/event"
 	"github.com/robotlovesyou/fitest/pkg/log"
 	"github.com/robotlovesyou/fitest/pkg/store/userstore"
+	"github.com/robotlovesyou/fitest/pkg/telemetry"
 	"github.com/robotlovesyou/fitest/pkg/utctime"
+	"go.opentelemetry.io/otel"
 )
 
 const (
@@ -388,7 +390,12 @@ Loop:
 		if !more {
 			break Loop
 		}
+		//  For most tracing I am not recording the user service functions,
+		// but this is the root of the calls related to event publishing
+		ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "HandlingChangeEvent")
+		defer span.End()
 		if result.Err != nil {
+			span.RecordError(result.Err)
 			service.logger.Errorf(ctx, result.Err, "error receiving event from store")
 			service.recordEventResult(false)
 			continue
