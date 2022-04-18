@@ -24,10 +24,10 @@ const (
 
 // UsersService defines the interface for the service RPCServer delegates its implementation logic to
 type UsersService interface {
-	CreateUser(context.Context, *user.NewUser) (user.User, error)
-	UpdateUser(context.Context, *user.Update) (user.User, error)
-	DeleteUser(context.Context, *user.Ref) error
-	FindUsers(context.Context, *user.Query) (user.Page, error)
+	Create(context.Context, *user.NewUser) (user.User, error)
+	Update(context.Context, *user.Update) (user.User, error)
+	Delete(context.Context, *user.Ref) error
+	Find(context.Context, *user.Query) (user.Page, error)
 }
 
 // RPCServer is an impementation of userspb.UsersService.
@@ -92,7 +92,7 @@ func (svr *RPCServer) CreateUser(ctx context.Context, newUser *userspb.NewUser) 
 	defer span.End()
 	svr.logger.Infof(ctx, "creating user %s", newUser.Email)
 
-	usr, err := svr.service.CreateUser(ctx, &user.NewUser{
+	usr, err := svr.service.Create(ctx, &user.NewUser{
 		FirstName:       newUser.FirstName,
 		LastName:        newUser.LastName,
 		Nickname:        newUser.Nickname,
@@ -126,7 +126,7 @@ func (svr *RPCServer) UpdateUser(ctx context.Context, userUpdate *userspb.Update
 	svr.logger.Infof(ctx, "updating user %s", userUpdate.Id)
 
 	defer span.End()
-	usr, err := svr.service.UpdateUser(ctx, &user.Update{
+	usr, err := svr.service.Update(ctx, &user.Update{
 		ID:              userUpdate.Id,
 		FirstName:       userUpdate.FirstName,
 		LastName:        userUpdate.LastName,
@@ -160,7 +160,7 @@ func (svr *RPCServer) DeleteUser(ctx context.Context, userRef *userspb.Ref) (*em
 	defer span.End()
 	svr.logger.Infof(ctx, "deleting user %s", userRef.Id)
 
-	if err := svr.service.DeleteUser(ctx, &user.Ref{ID: userRef.Id}); err != nil {
+	if err := svr.service.Delete(ctx, &user.Ref{ID: userRef.Id}); err != nil {
 		svr.logger.Errorf(ctx, err, "error deleting user: %s", userRef.Id)
 		span.RecordError(err)
 		// For the sake of brevity, I am only going to use grpc error codes when the service fails.
@@ -183,7 +183,7 @@ func (svr *RPCServer) FindUsers(ctx context.Context, query *userspb.Query) (*use
 	defer span.End()
 	svr.logger.Infof(ctx, "finding page %d of users with country '%s' created after '%s'", query.Page, query.Country, query.CreatedAfter)
 
-	page, err := svr.service.FindUsers(ctx, &user.Query{
+	page, err := svr.service.Find(ctx, &user.Query{
 		CreatedAfter: query.CreatedAfter,
 		Country:      query.Country,
 		Length:       query.Length,

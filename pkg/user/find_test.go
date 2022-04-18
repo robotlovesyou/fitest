@@ -46,7 +46,7 @@ func TestCorrectParametersPassedToStoreFind(t *testing.T) {
 			require.Equal(t, query.Page, q.Page)
 			return page, nil
 		}
-		p, err := service.FindUsers(context.Background(), &query)
+		p, err := service.Find(context.Background(), &query)
 		require.NoError(t, err)
 		require.Equal(t, page.Page, p.Page)
 		require.Equal(t, page.Total, p.Total)
@@ -77,7 +77,7 @@ func TestCorrectDefaultsAreSetForFindManyWhenQueryHasMissingFields(t *testing.T)
 			require.Equal(t, user.DefaultPage, q.Page)
 			return page, nil
 		}
-		p, err := service.FindUsers(context.Background(), &query)
+		p, err := service.Find(context.Background(), &query)
 		require.NoError(t, err)
 		require.Equal(t, page.Page, p.Page)
 		require.Equal(t, page.Total, p.Total)
@@ -93,7 +93,7 @@ func TestOriginalErrorIsInChainWhenStoreFindReturnsError(t *testing.T) {
 		storeStub.stubFindMany = func(context.Context, *userstore.Query) (userstore.Page, error) {
 			return userstore.Page{}, unexpected
 		}
-		_, err := service.FindUsers(context.Background(), &query)
+		_, err := service.Find(context.Background(), &query)
 		require.ErrorIs(t, err, unexpected)
 	})
 }

@@ -1,7 +1,7 @@
 PACKAGES = github.com/robotlovesyou/fitest/pkg/... github.com/robotlovesyou/fitest/cmd/...
 TEST = go test $(PACKAGES) -count=1
 						 
-export MONGO_TEST_URL = mongodb://root:password@localhost:27017/
+export DATABASE_TEST_URI = mongodb://root:password@localhost:27017/
 
 test:
 	$(TEST)
@@ -25,3 +25,6 @@ protoc:
 
 cloc: 
 	cloc . --not-match-f=\.pb\.go
+
+run:
+	@RPC_PORT=8080 DATABASE_URI=${DATABASE_TEST_URI}/users?authSource=admin go run github.com/robotlovesyou/fitest/cmd/users/.

@@ -1,34 +1,38 @@
 package main
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-func TestForExpectedGreeting(t *testing.T) {
-	require.Equal(t, "Hello, World", Greeting())
+func TestCanGetConfiguredRPCPort(t *testing.T) {
+	t.Setenv(RpcPortVar, "1234")
+	port, err := rpcPort()
+	require.NoError(t, err)
+	require.Equal(t, int32(1234), port)
 }
 
-func TestCanConnectToMongodbService(t *testing.T) {
-	// Copy pasted from the mongodb go client docs. Test connectivity to the db
-	uri := "mongodb://root:password@localhost:27017/test?maxPoolSize=20&w=majority&authSource=admin"
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(uri))
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err = client.Disconnect(context.TODO()); err != nil {
-			panic(err)
-		}
-	}()
-	// Ping the primary
-	if err := client.Ping(context.TODO(), readpref.Primary()); err != nil {
-		panic(err)
-	}
+func TestErrorReturnedWithMisconfiguredRPCPort(t *testing.T) {
+	t.Setenv(RpcPortVar, "bad value")
+	_, err := rpcPort()
+	require.Error(t, err)
+}
+
+func TestCanGetConfiguredHealthcheckPort(t *testing.T) {
+	t.Setenv(HealthPortVar, "1234")
+	port, err := healthcheckPort()
+	require.NoError(t, err)
+	require.Equal(t, int32(1234), port)
+}
+
+func TestErrorReturnedWithMisconfiguredHealthcheckPort(t *testing.T) {
+	t.Setenv(HealthPortVar, "bad value")
+	_, err := rpcPort()
+	require.Error(t, err)
+}
+
+func TestCanGetConfiguredDatabaseURI(t *testing.T) {
+	t.Setenv(DatabaseURIVar, "databaseURI")
+	require.Equal(t, "databaseURI", databaseURI())
 }

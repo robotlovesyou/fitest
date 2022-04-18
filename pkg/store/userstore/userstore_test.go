@@ -21,7 +21,7 @@ import (
 const timeout = 10 * time.Second
 
 func testURI() (string, string) {
-	uriStr := os.Getenv("MONGO_TEST_URL")
+	uriStr := os.Getenv("DATABASE_TEST_URI")
 	parsed, err := url.Parse(uriStr)
 	if err != nil {
 		panic(fmt.Sprintf("cannot parse '%s' as a url: %v", uriStr, err))

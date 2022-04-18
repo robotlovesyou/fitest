@@ -291,8 +291,8 @@ func (service *Service) Update(ctx context.Context, update *Update) (usr User, e
 	return copyStoreUserToUser(&rec), nil
 }
 
-// DeleteUser deletes a single user, if the referenced user exists
-func (service *Service) DeleteUser(ctx context.Context, ref *Ref) error {
+// Delete deletes a single user, if the referenced user exists
+func (service *Service) Delete(ctx context.Context, ref *Ref) error {
 	if err := service.validate.Struct(ref); err != nil {
 		return ErrInvalid
 	}
@@ -308,8 +308,8 @@ func (service *Service) DeleteUser(ctx context.Context, ref *Ref) error {
 	return nil
 }
 
-// FindUsers finds a page of users matching the given query
-func (service *Service) FindUsers(ctx context.Context, query *Query) (p Page, err error) {
+// Find finds a page of users matching the given query
+func (service *Service) Find(ctx context.Context, query *Query) (p Page, err error) {
 	ca, err := time.Parse(TimeFormat, query.CreatedAfter)
 	if err != nil {
 		ca = time.Time{} // pass zero time as the default, because everything is created afterward

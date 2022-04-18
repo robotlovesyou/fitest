@@ -24,7 +24,7 @@ func TestDeleteCallsStoreWithCorrectParameters(t *testing.T) {
 			require.Equal(t, userRef.ID, idUUID)
 			return nil
 		}
-		err := service.DeleteUser(context.Background(), &userRef)
+		err := service.Delete(context.Background(), &userRef)
 		require.NoError(t, err)
 	})
 }
@@ -36,7 +36,7 @@ func TestDeleteReturnsErrorWhenRefIsInvalid(t *testing.T) {
 		storeStub.stubDeleteOne = func(ctx context.Context, id uuid.UUID) error {
 			panic("store delete should not be called when ref is invalid")
 		}
-		err := service.DeleteUser(context.Background(), &userRef)
+		err := service.Delete(context.Background(), &userRef)
 		require.ErrorIs(t, err, user.ErrInvalid)
 	})
 }
@@ -68,7 +68,7 @@ func TestDeleteReturnsCorrectErrorWhenStoreDeleteFails(t *testing.T) {
 				storeStub.stubDeleteOne = func(ctx context.Context, id uuid.UUID) error {
 					return thisCase.result
 				}
-				err := service.DeleteUser(context.Background(), &userRef)
+				err := service.Delete(context.Background(), &userRef)
 				require.ErrorIs(t, err, thisCase.expected)
 			})
 		})

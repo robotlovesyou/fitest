@@ -31,49 +31,49 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-type stubCreateUser func(context.Context, *user.NewUser) (user.User, error)
-type stubUpdateUser func(context.Context, *user.Update) (user.User, error)
-type stubDeleteUser func(context.Context, *user.Ref) error
-type stubFindUsers func(context.Context, *user.Query) (user.Page, error)
+type stubCreate func(context.Context, *user.NewUser) (user.User, error)
+type stubUpdate func(context.Context, *user.Update) (user.User, error)
+type stubDelete func(context.Context, *user.Ref) error
+type stubFind func(context.Context, *user.Query) (user.Page, error)
 
 type stubUsersService struct {
-	createUser stubCreateUser
-	updateUser stubUpdateUser
-	deleteUser stubDeleteUser
-	findUsers  stubFindUsers
+	create stubCreate
+	update stubUpdate
+	delete stubDelete
+	find   stubFind
 }
 
 func newStubService() *stubUsersService {
 	return &stubUsersService{
-		createUser: func(context.Context, *user.NewUser) (user.User, error) {
+		create: func(context.Context, *user.NewUser) (user.User, error) {
 			panic("stub create user")
 		},
-		updateUser: func(context.Context, *user.Update) (user.User, error) {
+		update: func(context.Context, *user.Update) (user.User, error) {
 			panic("stub update user")
 		},
-		deleteUser: func(context.Context, *user.Ref) error {
+		delete: func(context.Context, *user.Ref) error {
 			panic("stub delete user")
 		},
-		findUsers: func(context.Context, *user.Query) (user.Page, error) {
+		find: func(context.Context, *user.Query) (user.Page, error) {
 			panic("stub find users")
 		},
 	}
 }
 
-func (svc *stubUsersService) CreateUser(ctx context.Context, newUser *user.NewUser) (user.User, error) {
-	return svc.createUser(ctx, newUser)
+func (svc *stubUsersService) Create(ctx context.Context, newUser *user.NewUser) (user.User, error) {
+	return svc.create(ctx, newUser)
 }
 
-func (svc *stubUsersService) UpdateUser(ctx context.Context, userUpdate *user.Update) (user.User, error) {
-	return svc.updateUser(ctx, userUpdate)
+func (svc *stubUsersService) Update(ctx context.Context, userUpdate *user.Update) (user.User, error) {
+	return svc.update(ctx, userUpdate)
 }
 
-func (svc *stubUsersService) DeleteUser(ctx context.Context, userRef *user.Ref) error {
-	return svc.deleteUser(ctx, userRef)
+func (svc *stubUsersService) Delete(ctx context.Context, userRef *user.Ref) error {
+	return svc.delete(ctx, userRef)
 }
 
-func (svc stubUsersService) FindUsers(ctx context.Context, query *user.Query) (user.Page, error) {
-	return svc.findUsers(ctx, query)
+func (svc stubUsersService) Find(ctx context.Context, query *user.Query) (user.Page, error) {
+	return svc.find(ctx, query)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,7 +258,7 @@ func TestCreateUserRPCCallsUsersServiceWithCorrectValues(t *testing.T) {
 	var response user.User
 	withClient(stubService, func(client userspb.UsersClient) {
 		// check that the request payload has been conveyed correctly to the users service
-		stubService.createUser = func(ctx context.Context, newUser *user.NewUser) (user.User, error) {
+		stubService.create = func(ctx context.Context, newUser *user.NewUser) (user.User, error) {
 			require.Equal(t, request.FirstName, newUser.FirstName)
 			require.Equal(t, request.LastName, newUser.LastName)
 			require.Equal(t, request.Nickname, newUser.Nickname)
@@ -306,7 +306,7 @@ func TestCorrectErrorCodesSentCreatingUser(t *testing.T) {
 			stubService := newStubService()
 			request := fakeNewUser()
 			withClient(stubService, func(client userspb.UsersClient) {
-				stubService.createUser = func(ctx context.Context, _ *user.NewUser) (usr user.User, err error) {
+				stubService.create = func(ctx context.Context, _ *user.NewUser) (usr user.User, err error) {
 					return usr, testCase.result
 				}
 
@@ -323,7 +323,7 @@ func TestUpdateUserRPCCallsServiceAndRespondsWithCorrectValues(t *testing.T) {
 	var response user.User
 	withClient(stubService, func(client userspb.UsersClient) {
 		// check that the request payload has been conveyed correctly to the users service
-		stubService.updateUser = func(ctx context.Context, userUpdate *user.Update) (user.User, error) {
+		stubService.update = func(ctx context.Context, userUpdate *user.Update) (user.User, error) {
 			require.Equal(t, request.Id, userUpdate.ID)
 			require.Equal(t, request.FirstName, userUpdate.FirstName)
 			require.Equal(t, request.LastName, userUpdate.LastName)
@@ -376,7 +376,7 @@ func TestCorrectErrorCodesSentUpdatingUser(t *testing.T) {
 			stubService := newStubService()
 			request := fakeUserUpdate()
 			withClient(stubService, func(client userspb.UsersClient) {
-				stubService.updateUser = func(ctx context.Context, _ *user.Update) (usr user.User, err error) {
+				stubService.update = func(ctx context.Context, _ *user.Update) (usr user.User, err error) {
 					return usr, testCase.result
 				}
 
@@ -392,7 +392,7 @@ func TestDeleteUserRPCCallsUsersServiceAndRespondsWithCorrectValues(t *testing.T
 	request := fakeUserRef()
 	withClient(stubService, func(client userspb.UsersClient) {
 		// check that the request payload has been conveyed correctly to the users service
-		stubService.deleteUser = func(ctx context.Context, ref *user.Ref) error {
+		stubService.delete = func(ctx context.Context, ref *user.Ref) error {
 			require.Equal(t, request.Id, ref.ID)
 			return nil
 		}
@@ -431,7 +431,7 @@ func TestCorrectErrorCodesSentDeletingUser(t *testing.T) {
 			stubService := newStubService()
 			request := fakeUserRef()
 			withClient(stubService, func(client userspb.UsersClient) {
-				stubService.deleteUser = func(ctx context.Context, _ *user.Ref) error {
+				stubService.delete = func(ctx context.Context, _ *user.Ref) error {
 					return testCase.result
 				}
 
@@ -448,7 +448,7 @@ func TestFindUsersRPCCallsServiceAndRespondsWithCorrectValues(t *testing.T) {
 	var response user.Page
 	withClient(stubService, func(client userspb.UsersClient) {
 		// check that the request payload has been conveyed correctly to the users service
-		stubService.findUsers = func(ctx context.Context, query *user.Query) (user.Page, error) {
+		stubService.find = func(ctx context.Context, query *user.Query) (user.Page, error) {
 			require.Equal(t, request.CreatedAfter, query.CreatedAfter)
 			require.Equal(t, request.Country, query.Country)
 			require.Equal(t, request.Page, query.Page)
@@ -475,7 +475,7 @@ func TestCorrectErrorCodeSentFindingUsers(t *testing.T) {
 	stubService := newStubService()
 	request := fakeUsersQuery()
 	withClient(stubService, func(client userspb.UsersClient) {
-		stubService.findUsers = func(ctx context.Context, _ *user.Query) (page user.Page, err error) {
+		stubService.find = func(ctx context.Context, _ *user.Query) (page user.Page, err error) {
 			return page, errors.New("some unexpected error")
 		}
 
