@@ -276,6 +276,7 @@ func (service *Service) updateHashIfSet(update *Update, rec *userstore.User) (er
 // Update updates a user if the request is valid and references an existing user
 func (service *Service) Update(ctx context.Context, update *Update) (usr User, err error) {
 	if err := service.validate.Struct(update); err != nil {
+		service.logger.Errorf(ctx, err, "cannot update invalid user")
 		// In a real world implementation, the validation would need to return information rich enough to allow the consumer to
 		// address the issue, because "computer says 'No'" is not very helpful, but it will do for here, hopefully!
 		return usr, ErrInvalid
