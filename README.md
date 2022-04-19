@@ -51,6 +51,9 @@ The service uses optimistic locking to prevent updates overwriting with stale da
 The userstore package is a repository for the data stored by the service, implemented on top of mongodb.
 It provides CRUD functions for user records, and also provides a stream of mutation events (see section on transactional outbox below)
 
+### pkg/log
+pkg/log provides a very basic structured logger, implemented on top of the uber zap logger. 
+
 ## Transactional Outbox
 
 The principle of the transactional outbox pattern is to make the decision to mutate a record and the decision to send an event regarding that mutation a single atomic event.
