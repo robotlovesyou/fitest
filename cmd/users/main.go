@@ -138,12 +138,12 @@ func startpublishingChanges(ctx context.Context, service *user.Service) {
 	go service.PublishChanges(ctx)
 }
 
-func startHealthcheck(logger *log.Logger, store *userstore.Store) (*http.Server, error) {
+func startHealthcheck(logger *log.Logger, store *userstore.Store, service *user.Service) (*http.Server, error) {
 	port, err := healthcheckPort()
 	if err != nil {
 		return nil, err
 	}
-	svc := health.New(logger, userstore.NewMonitor(store))
+	svc := health.New(logger, userstore.NewMonitor(store), user.NewMonitor(service))
 	mux := http.NewServeMux()
 	mux.HandleFunc(HealthcheckPath, svc.Handle)
 	server := &http.Server{
@@ -179,7 +179,7 @@ func main() {
 
 	startpublishingChanges(ctx, service)
 
-	healthServer, err := startHealthcheck(logger, store)
+	healthServer, err := startHealthcheck(logger, store, service)
 	if err != nil {
 		panic(err)
 	}

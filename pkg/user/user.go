@@ -37,6 +37,8 @@ const (
 	MaxPollInterval = 30 * time.Millisecond
 	// RetryTimeout is time an event can be left pending before retry. It should be configurable
 	RetryInterval = 10 * time.Second
+	// MinHealthyRatio is the minimum ratio of successful event publishes for the service to be considered healthy. It should be configurable
+	MinHealthyRatio = 0.9
 )
 
 var (
@@ -144,6 +146,28 @@ type Service struct {
 	// In a production setting I would declare this as an interface to allow for stub implementations for testing
 	// I am handling most logging at the RPC level, logging success or failure, but also need to log events, which don't exist at the RPC level
 	logger *log.Logger
+}
+
+type Monitor struct {
+	service *Service
+}
+
+func NewMonitor(service *Service) *Monitor {
+	return &Monitor{
+		service: service,
+	}
+}
+
+func (m *Monitor) Name() string {
+	return "Users Service"
+}
+
+func (m *Monitor) Check(context.Context) error {
+	rate := m.service.CheckEventSuccessRateAndReset()
+	if rate < MinHealthyRatio {
+		return fmt.Errorf("Event Success is %f which is below the minimu of %f", rate, MinHealthyRatio)
+	}
+	return nil
 }
 
 // New creates a new service.
@@ -443,6 +467,12 @@ func (service *Service) recordEventResult(ok bool) {
 func (service *Service) CheckEventSuccessRateAndReset() float64 {
 	service.eventMtx.Lock()
 	defer service.eventMtx.Unlock()
+
+	// if there have been no events, return 100%
+	if service.eventCount == 0 {
+		return 1.0
+	}
+
 	rate := service.successRate
 	service.eventCount = 0
 	service.successRate = 0.0
