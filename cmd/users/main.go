@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,6 +35,9 @@ const (
 	// DatabaseConnectionTimeout is the time allowed to make an initial connection to the database.
 	// It should be configurable
 	DatabaseConnectionTimeout = 30 * time.Second
+
+	//Interface Addr is the interface to listen on. It should probably be configurable
+	InterfaceAddr = "0.0.0.0"
 )
 
 func getEnvI32(name string) (int32, error) {
@@ -69,8 +73,14 @@ func createStore() (user.UserStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to mongo server: %w", err)
 	}
-	db := client.Database(uri.Path)
-	return userstore.New(db), nil
+	db := client.Database(strings.TrimLeft(uri.Path, "/"))
+	store := userstore.New(db)
+	err = store.EnsureIndexes(ctx) // This should not really be done at service startup
+	if err != nil {
+		return nil, fmt.Errorf("cannot create indexes: %w", err)
+	}
+
+	return store, nil
 }
 
 func createEventBus() event.Bus {
@@ -108,10 +118,11 @@ func startRPC(service *user.Service, logger *log.Logger) (*grpc.Server, error) {
 	}
 
 	// It might be better to make the interface configurable as well as the port
-	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", InterfaceAddr, port))
 	if err != nil {
 		return nil, fmt.Errorf("canoot bind to port %d, %w", port, err)
 	}
+	stdlog.Printf("RPC listening on %s:%d", InterfaceAddr, port)
 	grpcServer := grpc.NewServer()
 	userspb.RegisterUsersServer(grpcServer, rpc.New(service, logger))
 	go grpcServer.Serve(lis)
@@ -119,8 +130,12 @@ func startRPC(service *user.Service, logger *log.Logger) (*grpc.Server, error) {
 	return grpcServer, nil
 }
 
+func startpublishingChanges(ctx context.Context, service *user.Service) {
+	go service.PublishChanges(ctx)
+}
+
 func main() {
-	_, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	store, err := createStore()
 	if err != nil {
 		panic(err)
@@ -138,7 +153,14 @@ func main() {
 		panic(err)
 	}
 
-	// TODO: Publish change events
+	startpublishingChanges(ctx, service)
+
+	// TODO: Create a healthcheck
+	// TODO: Add env for jaeger server
+	// TODO: Configure an exporter for Jaeger
+	// TODO: Add otel grpc middleware
+	// TODO: Add middleware to assign a request ID
+	// TODO: Fail politely.
 	<-waitForExitSignal()
 	rpcServer.Stop()
 	cancel()
