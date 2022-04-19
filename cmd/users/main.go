@@ -5,6 +5,7 @@ import (
 	"fmt"
 	stdlog "log"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/robotlovesyou/fitest/pkg/event"
+	"github.com/robotlovesyou/fitest/pkg/health"
 	"github.com/robotlovesyou/fitest/pkg/log"
 	"github.com/robotlovesyou/fitest/pkg/password"
 	"github.com/robotlovesyou/fitest/pkg/rpc"
@@ -38,6 +40,8 @@ const (
 
 	//Interface Addr is the interface to listen on. It should probably be configurable
 	InterfaceAddr = "0.0.0.0"
+	//HealthcheckPath is the path for the healthcheck.
+	HealthcheckPath = "/healthy"
 )
 
 func getEnvI32(name string) (int32, error) {
@@ -60,7 +64,7 @@ func databaseURI() string {
 	return os.Getenv(DatabaseURIVar)
 }
 
-func createStore() (user.UserStore, error) {
+func createStore() (*userstore.Store, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), DatabaseConnectionTimeout)
 	defer cancel()
 
@@ -134,6 +138,26 @@ func startpublishingChanges(ctx context.Context, service *user.Service) {
 	go service.PublishChanges(ctx)
 }
 
+func startHealthcheck(logger *log.Logger, store *userstore.Store) (*http.Server, error) {
+	port, err := healthcheckPort()
+	if err != nil {
+		return nil, err
+	}
+	svc := health.New(logger, userstore.NewMonitor(store))
+	mux := http.NewServeMux()
+	mux.HandleFunc(HealthcheckPath, svc.Handle)
+	server := &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", InterfaceAddr, port),
+		Handler: mux,
+	}
+	go func() {
+		stdlog.Printf("healtcheck starting on %s", server.Addr)
+		err := server.ListenAndServe()
+		stdlog.Printf("healthcheck server has exited: %v", err)
+	}()
+	return server, nil
+}
+
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	store, err := createStore()
@@ -155,6 +179,11 @@ func main() {
 
 	startpublishingChanges(ctx, service)
 
+	healthServer, err := startHealthcheck(logger, store)
+	if err != nil {
+		panic(err)
+	}
+
 	// TODO: Create a healthcheck
 	// TODO: Add env for jaeger server
 	// TODO: Configure an exporter for Jaeger
@@ -163,6 +192,7 @@ func main() {
 	// TODO: Fail politely.
 	<-waitForExitSignal()
 	rpcServer.Stop()
+	healthServer.Close()
 	cancel()
 
 }

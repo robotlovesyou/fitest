@@ -27,4 +27,6 @@ cloc:
 	cloc . --not-match-f=\.pb\.go
 
 run:
-	@RPC_PORT=8080 DATABASE_URI=${DATABASE_TEST_URI}users?authSource=admin go run github.com/robotlovesyou/fitest/cmd/users/.
+	@RPC_PORT=8080 \
+	DATABASE_URI=${DATABASE_TEST_URI}users?authSource=admin \
+	HEALTH_PORT=9090 go run github.com/robotlovesyou/fitest/cmd/users/.

@@ -110,6 +110,22 @@ type Store struct {
 	collection *mongo.Collection
 }
 
+type Monitor struct {
+	store *Store
+}
+
+func NewMonitor(store *Store) *Monitor {
+	return &Monitor{store: store}
+}
+
+func (m *Monitor) Name() string {
+	return "Datastore"
+}
+
+func (m *Monitor) Check(ctx context.Context) error {
+	return m.store.db.Client().Ping(ctx, nil)
+}
+
 // New creates a new store
 func New(db *mongo.Database) *Store {
 	return &Store{
