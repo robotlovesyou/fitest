@@ -27,12 +27,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 const (
 	RpcPortVar     = "RPC_PORT"
 	HealthPortVar  = "HEALTH_PORT"
 	DatabaseURIVar = "DATABASE_URI"
+	JaegerURIVar   = "JAEGER_URI"
 
 	// DatabaseConnectionTimeout is the time allowed to make an initial connection to the database.
 	// It should be configurable
@@ -129,6 +131,7 @@ func startRPC(service *user.Service, logger *log.Logger) (*grpc.Server, error) {
 	stdlog.Printf("RPC listening on %s:%d", InterfaceAddr, port)
 	grpcServer := grpc.NewServer()
 	userspb.RegisterUsersServer(grpcServer, rpc.New(service, logger))
+	reflection.Register(grpcServer)
 	go grpcServer.Serve(lis)
 
 	return grpcServer, nil
@@ -162,34 +165,28 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	store, err := createStore()
 	if err != nil {
-		panic(err)
+		stdlog.Fatal(err)
 	}
 
 	logger, err := createLogger()
 	if err != nil {
-		panic(err)
+		stdlog.Fatal(err)
 	}
 
 	service := createUserService(store, createEventBus(), logger)
 
 	rpcServer, err := startRPC(service, logger)
 	if err != nil {
-		panic(err)
+		stdlog.Fatal(err)
 	}
 
 	startpublishingChanges(ctx, service)
 
 	healthServer, err := startHealthcheck(logger, store, service)
 	if err != nil {
-		panic(err)
+		stdlog.Fatal(err)
 	}
 
-	// TODO: Create a healthcheck
-	// TODO: Add env for jaeger server
-	// TODO: Configure an exporter for Jaeger
-	// TODO: Add otel grpc middleware
-	// TODO: Add middleware to assign a request ID
-	// TODO: Fail politely.
 	<-waitForExitSignal()
 	rpcServer.Stop()
 	healthServer.Close()

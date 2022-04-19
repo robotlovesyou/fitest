@@ -369,14 +369,11 @@ func (store *Store) findItems(ctx context.Context, query *Query) <-chan itemsRes
 		if err != nil {
 			err = fmt.Errorf("cannot find matching users: %w", err)
 		} else {
-			for {
+			for cursor.Next(ctx) {
 				if err = cursor.Decode(&rec); err != nil {
 					break
 				}
 				items = append(items, *rec.Data)
-				if !cursor.Next(ctx) {
-					break
-				}
 			}
 			err = cursor.Err()
 		}
@@ -506,9 +503,9 @@ func (store *Store) ProcessEvent(ctx context.Context, id uuid.UUID, version int6
 	ctx, span := otel.Tracer(telemetry.TraceName).Start(ctx, "ProcessEvent")
 	defer span.End()
 	_, err := store.collection.UpdateOne(ctx, bson.M{
-		"_id":                   id,
-		"events.0.state":        Processing,
-		"events.0.data.version": version,
+		"_id":              id,
+		"events.0.state":   Processing,
+		"events.0.version": version,
 	}, bson.M{
 		"$pop": bson.M{"events": -1},
 	})

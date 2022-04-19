@@ -24,6 +24,7 @@ func TestCanPageThroughAllUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(1), page1.Page)
 		require.Equal(t, int64(20), page1.Total)
+		require.Len(t, page1.Items, 10)
 		for i, itm := range page1.Items {
 			compareUserRecords(t, users[i], itm)
 		}
@@ -35,6 +36,7 @@ func TestCanPageThroughAllUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(2), page2.Page)
 		require.Equal(t, int64(20), page2.Total)
+		require.Len(t, page2.Items, 10)
 		for i, itm := range page2.Items {
 			compareUserRecords(t, users[i+10], itm)
 		}

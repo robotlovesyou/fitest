@@ -7,8 +7,16 @@ services:
     environment:
         MONGO_INITDB_ROOT_USERNAME: "root"
         MONGO_INITDB_ROOT_PASSWORD: "password"
-  jaeger:
-    image: jaegertracing/all-in-one:1.32
+  users:
+    build:
+      context: .
+    environment:
+      RPC_PORT: 8080
+      HEALTH_PORT: 9090
+      DATABASE_URI: mongodb://root:password@db:27017/users?authSource=admin
     ports:
-      - "14268:14268"   # jaeger-collector HTTP server (tracer provider)
-      - "16686:16686"   # HTTP server (browser UI)
+      - "8080:8080"
+      - "9090:9090"
+
+
+

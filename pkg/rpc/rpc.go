@@ -56,6 +56,7 @@ func pbUserFromUser(user *user.User) *userspb.User {
 		Country:   user.Country,
 		CreatedAt: user.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: user.UpdatedAt.Format(time.RFC3339),
+		Version:   user.Version,
 	}
 }
 
@@ -69,6 +70,7 @@ func pbUserFromSanitizedUser(user *user.SanitizedUser) *userspb.User {
 		Country:   user.Country,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
+		Version:   user.Version,
 	}
 }
 

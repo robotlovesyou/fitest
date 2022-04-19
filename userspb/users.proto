@@ -22,7 +22,7 @@ message User {
     string country  = 6;
     string created_at = 7;
     string updated_at = 8;
-    int32 version = 9;
+    int64 version = 9;
 }
 
 message Update {

@@ -231,6 +231,7 @@ func (service *Service) Create(ctx context.Context, newUser *NewUser) (user User
 	}
 
 	if err = service.validate.Struct(newUser); err != nil {
+		service.logger.Errorf(ctx, err, "cannot create invalid user")
 		// In a real world implementation, the validation would need to return information rich enough to allow the consumer to
 		// address the issue, because "computer says 'No'" is not very helpful, but it will do for here, hopefully!
 
@@ -395,9 +396,10 @@ func eventFromUserstoreEvent(ue *userstore.Event) Event {
 }
 
 func (service *Service) publishChange(ctx context.Context, ue userstore.Event) {
-	ctx, cancel := context.WithTimeout(ctx, RetryInterval)
-	defer cancel()
 	go func() {
+		ctx, cancel := context.WithTimeout(ctx, RetryInterval)
+		defer cancel()
+
 		result, err := event.SendJSON(eventFromUserstoreEvent(&ue), service.bus)
 		if err != nil {
 			service.logger.Errorf(ctx, err, "error sending event with id:%s and version %d", ue.ID, ue.Version)
@@ -411,6 +413,7 @@ func (service *Service) publishChange(ctx context.Context, ue userstore.Event) {
 			return
 		}
 		if err = service.store.ProcessEvent(ctx, ue.ID, ue.Version); err != nil {
+			service.logger.Errorf(ctx, err, "failed to process event with id:%s and version %d", ue.ID, ue.Version)
 			service.recordEventResult(false)
 			return
 		}
